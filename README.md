@@ -1,6 +1,6 @@
-# mezomono
+# Mezo Tools
 
-Monorepo for the Mezo operator toolchain. The workspace is managed with `pnpm` and contains the operational dashboard, data indexer, redemption dApp, and a shared TypeScript toolkit so protocol logic stays consistent across packages.
+Monorepo for the Mezo chain tools. The workspace is managed with `pnpm` and contains the operational dashboard, data indexer, redemption dApp, and a shared TypeScript toolkit so protocol logic stays consistent across packages.
 
 ## Getting Started
 
@@ -19,7 +19,7 @@ Each package exposes its own scripts, but the root `pnpm` installation step only
 
 ### `@mtools/dashboard`
 
-- Vite + React single-page app that visualizes the mUSD protocol state (troves, liquidations, bridge balances, wallet health) pulled from Supabase.
+- Vite + React single-page app that visualizes the MUSD protocol state (troves, liquidations, bridge balances, wallet health) pulled from Supabase.
 - Offers operator tooling such as risk projections, quick redemption/bridge dialogs, and live monitoring powered by TanStack Query and Supabase subscriptions.
 - Develop with `pnpm --filter @mtools/dashboard dev` and build via `pnpm --filter @mtools/dashboard build`. Preview the production bundle using `pnpm --filter @mtools/dashboard preview`.
 
@@ -31,7 +31,7 @@ Each package exposes its own scripts, but the root `pnpm` installation step only
 
 ### `@mtools/redeemer`
 
-- React + Vite dApp (with RainbowKit wallets) that lets operators simulate and submit mUSD redemptions, showing touched troves, estimated gas, and system safety checks.
+- React + Vite dApp (with RainbowKit wallets) that lets operators simulate and submit MUSD redemptions, showing touched troves, estimated gas, and system safety checks.
 - Also exposes a Node helper/CLI to run `RedemptionMaker` flows outside the browser for scripts or debugging.
 - Start the web app with `pnpm --filter @mtools/redeemer web:dev`, build for production via `web:build`, and run CLI scripts with `dev`, `build`, or `start`. Requires `VITE_WALLETCONNECT_PROJECT_ID` (web) and `PK` (CLI) environment variables.
 
