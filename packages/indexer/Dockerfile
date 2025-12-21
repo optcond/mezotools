@@ -26,7 +26,7 @@ COPY --from=builder /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/packages/indexer ./packages/indexer
 COPY --from=builder /app/packages/shared ./packages/shared
-COPY packages/indexer2/docker/entrypoint.sh /entrypoint.sh
+COPY packages/indexer/docker/entrypoint.sh /entrypoint.sh
 
 RUN chmod +x /entrypoint.sh
 
