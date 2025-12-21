@@ -1,0 +1,108 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* Deep navy gradient backgrounds */
+    --background: 222 45% 5%;
+    --background-end: 220 50% 3%;
+    --foreground: 210 40% 98%;
+
+    /* Glassmorphic card styling */
+    --card: 222 40% 8%;
+    --card-foreground: 210 40% 98%;
+    --card-border: 215 30% 15%;
+    --card-glow: 195 100% 45%;
+
+    --popover: 222 40% 8%;
+    --popover-foreground: 210 40% 98%;
+
+    /* Primary accent - updated logo color */
+    --primary: 0 85% 60%;
+    --primary-foreground: 210 40% 98%;
+    --primary-glow: 0 90% 70%;
+
+    /* Secondary and muted tones */
+    --secondary: 217 32% 17%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 215 20% 25%;
+    --muted-foreground: 215 16% 57%;
+
+    --accent: 195 64% 44%;
+    --accent-foreground: 210 40% 98%;
+
+    /* Risk color palette */
+    --critical: 0 85% 70%;
+    --high: 25 95% 53%;
+    --elevated: 48 96% 53%;
+    --safe: 142 71% 45%;
+
+    /* Destructive states */
+    --destructive: 0 85% 70%;
+    --destructive-foreground: 210 40% 98%;
+
+    /* Borders and inputs */
+    --border: 215 30% 15%;
+    --input: 215 30% 15%;
+    --ring: 0 85% 60%;
+
+    --radius: 1rem;
+
+    /* Sidebar (not used but kept for compatibility) */
+    --sidebar-background: 222 45% 5%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 195 64% 44%;
+    --sidebar-primary-foreground: 210 40% 98%;
+    --sidebar-accent: 217 32% 17%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 215 30% 15%;
+    --sidebar-ring: 195 64% 44%;
+
+    /* Gradients */
+    --gradient-bg: linear-gradient(135deg, hsl(var(--background)) 0%, hsl(var(--background-end)) 100%);
+    --gradient-card: linear-gradient(135deg, hsl(var(--card)) 0%, hsl(222 35% 10%) 100%);
+    --gradient-glow: radial-gradient(circle at 50% 0%, hsl(var(--primary-glow) / 0.15), transparent 50%);
+
+    /* Shadows */
+    --shadow-card: 0 12px 32px -8px hsl(220 50% 3% / 0.35);
+    --shadow-glow: 0 0 40px hsl(var(--primary-glow) / 0.2);
+
+    /* Transitions */
+    --transition-smooth: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-fade: opacity 0.4s ease-out;
+    --transition-slide: transform 0.22s ease-out;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply text-foreground;
+    background: linear-gradient(135deg, hsl(var(--background)) 0%, hsl(var(--background-end)) 100%);
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* Glassmorphic card effects */
+  .glass-card {
+    @apply bg-card/60 backdrop-blur-xl border border-card-border/60 rounded-2xl shadow-[0_12px_32px_-8px_hsl(220_50%_3%_/_0.35)];
+  }
+
+  /* Smooth transitions */
+  .transition-smooth {
+    transition: var(--transition-smooth);
+  }
+
+  /* Monospace for addresses */
+  .font-mono {
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', 'Droid Sans Mono', monospace;
+  }
+}
