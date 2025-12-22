@@ -50,6 +50,9 @@ const sanitizeErrorMessage = (message?: string | null) => {
   if (!message) {
     return null;
   }
+  if (message.includes("TroveManager: Unable to redeem any amount")) {
+    return "Unable to redeem any amount with the current hints. Run a fresh simulation and try again.";
+  }
   const markers = [
     "Request Arguments:",
     "Contract Call:",
