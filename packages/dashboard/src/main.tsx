@@ -4,22 +4,19 @@ import { createRoot } from "react-dom/client";
 import {
   RainbowKitProvider,
   darkTheme,
-  getDefaultConfig,
   type Theme,
 } from "@rainbow-me/rainbowkit";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { WagmiProvider, http } from "wagmi";
+import { WagmiProvider, createConfig, http } from "wagmi";
+import { injected } from "wagmi/connectors";
 import { MezoChain } from "@mtools/shared";
 import App from "./App.tsx";
 import "./index.css";
 
 const queryClient = new QueryClient();
-const projectId =
-  import.meta.env.VITE_WALLETCONNECT_PROJECT_ID ?? "MezoDashboardDemoId";
-const wagmiConfig = getDefaultConfig({
-  appName: "Mezo Dashboard",
-  projectId,
+const wagmiConfig = createConfig({
   chains: [MezoChain],
+  connectors: [injected()],
   transports: {
     [MezoChain.id]: http(MezoChain.rpcUrls.default.http[0]),
   },
