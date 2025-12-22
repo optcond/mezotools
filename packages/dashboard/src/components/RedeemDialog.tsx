@@ -15,6 +15,7 @@ import { Loader2, ShieldAlert, ArrowRightLeft, Sparkles } from "lucide-react";
 import { WalletConnectButton } from "@/components/WalletConnectButton";
 import {
   MezoChain,
+  MezoTokens,
   PriceFeedFetcher,
   RedemptionHints,
   RedemptionMaker,
@@ -31,6 +32,7 @@ import {
   PublicClient,
 } from "viem";
 import type { WalletControls } from "@/hooks/useWallet";
+import { useBalance } from "wagmi";
 
 const httpTransport = http(MezoChain.rpcUrls.default.http[0]);
 const MIN_TCR = 1_100_000_000_000_000_000n;
@@ -150,6 +152,19 @@ export const RedemptionDialog = ({
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [tcrValue, setTcrValue] = useState<bigint | null>(null);
   const [isRecoveryMode, setIsRecoveryMode] = useState<boolean | null>(null);
+  const {
+    data: musdBalance,
+    isFetching: isMusdBalanceFetching,
+    refetch: refetchMusdBalance,
+  } = useBalance({
+    address: wallet.account ? (wallet.account as `0x${string}`) : undefined,
+    chainId: MezoChain.id,
+    token: MezoTokens.MUSD.address as `0x${string}`,
+    query: {
+      enabled: open && Boolean(wallet.account),
+      refetchInterval: open ? 30_000 : false,
+    },
+  });
 
   const publicClient = useMemo(
     () =>
@@ -332,6 +347,7 @@ export const RedemptionDialog = ({
       });
       setTxResult(result);
       setStatus("Redemption submitted");
+      void refetchMusdBalance();
     } catch (err) {
       setStatus("Redemption failed");
       setRedemptionError(
@@ -343,6 +359,15 @@ export const RedemptionDialog = ({
   };
 
   const percentLabel = formatPercent(tcrValue);
+  const musdBalanceLabel = wallet.account
+    ? isMusdBalanceFetching
+      ? "Fetching…"
+      : musdBalance
+      ? `${Number(musdBalance.formatted).toLocaleString(undefined, {
+          maximumFractionDigits: 4,
+        })} ${musdBalance.symbol ?? "MUSD"}`
+      : "0 MUSD"
+    : "Connect wallet";
   const isBusy = isSimulating || isRedeeming;
   const redeemDisabled =
     !wallet.account || !wallet.walletClient || !simulation || !hints || isBusy;
@@ -388,6 +413,14 @@ export const RedemptionDialog = ({
                     ? "Connected wallet will be used for simulations and transactions."
                     : "Connect a wallet to load personalized data and run redemptions."}
                 </p>
+                {wallet.account && (
+                  <p className="text-xs text-muted-foreground">
+                    Available MUSD:{" "}
+                    <span className="font-semibold text-foreground">
+                      {musdBalanceLabel}
+                    </span>
+                  </p>
+                )}
               </div>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 {wallet.account && (
@@ -395,9 +428,7 @@ export const RedemptionDialog = ({
                     {truncateAddress(wallet.account)}
                   </Badge>
                 )}
-                <WalletConnectButton
-                  onModalOpen={() => onOpenChange(false)}
-                />
+                <WalletConnectButton onModalOpen={() => onOpenChange(false)} />
               </div>
             </div>
           </div>

@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useBalance } from "wagmi";
 import { Activity, ShieldAlert, Wallet, ExternalLink } from "lucide-react";
 
 import { WalletConnectButton } from "@/components/WalletConnectButton";
@@ -6,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { MezoChain, MezoTokens } from "@mtools/shared";
 import type { Trove, Liquidation, Redemption } from "@/hooks/useMonitorData";
 import type { WalletControls } from "@/hooks/useWallet";
 import { formatNumber } from "@/lib/formatNumber";
@@ -53,6 +55,29 @@ export const PersonalWalletStats = ({
 }: PersonalWalletStatsProps) => {
   const { account } = wallet;
   const normalizedAccount = account?.toLowerCase() ?? null;
+  const {
+    data: btcBalance,
+    isFetching: isBtcBalanceFetching,
+  } = useBalance({
+    address: account ? (account as `0x${string}`) : undefined,
+    chainId: MezoChain.id,
+    query: {
+      enabled: Boolean(account),
+      refetchInterval: account ? 30_000 : false,
+    },
+  });
+  const {
+    data: musdBalance,
+    isFetching: isMusdBalanceFetching,
+  } = useBalance({
+    address: account ? (account as `0x${string}`) : undefined,
+    chainId: MezoChain.id,
+    token: MezoTokens.MUSD.address as `0x${string}`,
+    query: {
+      enabled: Boolean(account),
+      refetchInterval: account ? 30_000 : false,
+    },
+  });
 
   const troveRiskMap = useMemo(() => {
     const sortedTroves = [...troves].sort((a, b) => {
@@ -128,6 +153,24 @@ export const PersonalWalletStats = ({
   );
 
   const isDisplayingData = Boolean(account);
+  const btcBalanceLabel = account
+    ? isBtcBalanceFetching
+      ? "Fetching…"
+      : btcBalance
+      ? `${Number(btcBalance.formatted).toLocaleString(undefined, {
+          maximumFractionDigits: 4,
+        })} ${btcBalance.symbol ?? "BTC"}`
+      : "0 BTC"
+    : "Connect wallet";
+  const musdBalanceLabel = account
+    ? isMusdBalanceFetching
+      ? "Fetching…"
+      : musdBalance
+      ? `${Number(musdBalance.formatted).toLocaleString(undefined, {
+          maximumFractionDigits: 2,
+        })} ${musdBalance.symbol ?? "MUSD"}`
+      : "0 MUSD"
+    : "Connect wallet";
 
   const renderConnectMessage = () => (
     <div className="flex flex-col gap-3 rounded-2xl border border-card-border/40 bg-card/20 p-6 text-sm text-muted-foreground sm:flex-row sm:items-center">
@@ -185,6 +228,28 @@ export const PersonalWalletStats = ({
           </div>
         </div>
       </div>
+
+      {account && (
+        <div className="rounded-2xl border border-card-border/40 bg-card/20 p-4">
+          <p className="text-xs uppercase text-muted-foreground">
+            Available balances
+          </p>
+          <div className="mt-3 grid gap-4 sm:grid-cols-2">
+            <div>
+              <p className="text-xs text-muted-foreground">BTC</p>
+              <p className="text-lg font-semibold text-foreground">
+                {btcBalanceLabel}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">MUSD</p>
+              <p className="text-lg font-semibold text-foreground">
+                {musdBalanceLabel}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {!isDisplayingData && renderConnectMessage()}
 
