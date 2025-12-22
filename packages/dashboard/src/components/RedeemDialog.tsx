@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, ShieldAlert, ArrowRightLeft, Sparkles } from "lucide-react";
+import { WalletConnectButton } from "@/components/WalletConnectButton";
 import {
   MezoChain,
   PriceFeedFetcher,
@@ -43,6 +44,28 @@ const sanitizeIterations = (value: string, fallback = 50) => {
   return clamped;
 };
 
+const sanitizeErrorMessage = (message?: string | null) => {
+  if (!message) {
+    return null;
+  }
+  const markers = [
+    "Request Arguments:",
+    "Contract Call:",
+    "Docs:",
+    "Details:",
+    "Version:",
+  ];
+  let trimmed = message;
+  for (const marker of markers) {
+    const index = trimmed.indexOf(marker);
+    if (index !== -1) {
+      trimmed = trimmed.slice(0, index);
+    }
+  }
+  const normalized = trimmed.replace(/\s+/g, " ").trim();
+  return normalized.length ? normalized : null;
+};
+
 const formatReadableError = (err: unknown, fallback: string) => {
   if (err instanceof BaseError) {
     if (
@@ -50,10 +73,22 @@ const formatReadableError = (err: unknown, fallback: string) => {
       `Execution reverted with reason: rpc error: code = Unknown desc = TroveManager: Requested redemption amount must be <= user's mUSD token balance.`
     )
       return `Your MUSD balance is insufficient to simulate redemption. Requested redemption amount must be <= MUSD token balance.`;
-    else return err.shortMessage || err.message || fallback;
+    const short = sanitizeErrorMessage(err.shortMessage);
+    if (short) {
+      return short;
+    }
+    const message = sanitizeErrorMessage(err.message);
+    if (message) {
+      return message;
+    }
+    return fallback;
   }
   if (err instanceof Error) {
-    return err.message;
+    const message = sanitizeErrorMessage(err.message);
+    if (message) {
+      return message;
+    }
+    return fallback;
   }
   return fallback;
 };
@@ -360,19 +395,9 @@ export const RedemptionDialog = ({
                     {truncateAddress(wallet.account)}
                   </Badge>
                 )}
-                <Button
-                  variant={wallet.account ? "outline" : "default"}
-                  onClick={() =>
-                    wallet.account ? wallet.disconnect() : void wallet.connect()
-                  }
-                  disabled={wallet.isConnecting}
-                >
-                  {wallet.account
-                    ? "Disconnect"
-                    : wallet.isConnecting
-                    ? "Connecting..."
-                    : "Connect wallet"}
-                </Button>
+                <WalletConnectButton
+                  onModalOpen={() => onOpenChange(false)}
+                />
               </div>
             </div>
           </div>

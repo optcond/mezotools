@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { Activity, ShieldAlert, Wallet, ExternalLink } from "lucide-react";
 
+import { WalletConnectButton } from "@/components/WalletConnectButton";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -50,7 +51,7 @@ export const PersonalWalletStats = ({
   wallet,
   onDebtCalculatorClick,
 }: PersonalWalletStatsProps) => {
-  const { account, isConnecting, connect, disconnect } = wallet;
+  const { account } = wallet;
   const normalizedAccount = account?.toLowerCase() ?? null;
 
   const troveRiskMap = useMemo(() => {
@@ -180,17 +181,7 @@ export const PersonalWalletStats = ({
                 Debt calculator
               </Button>
             )}
-            <Button
-              variant={account ? "outline" : "default"}
-              onClick={() => (account ? disconnect() : void connect())}
-              disabled={isConnecting}
-            >
-              {account
-                ? "Disconnect"
-                : isConnecting
-                ? "Connecting..."
-                : "Connect wallet"}
-            </Button>
+            <WalletConnectButton />
           </div>
         </div>
       </div>
