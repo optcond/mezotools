@@ -213,6 +213,33 @@ export const RedemptionDialog = ({
   }, [publicClient]);
 
   useEffect(() => {
+    if (!fetcher) {
+      return;
+    }
+    let cancelled = false;
+    const loadTcr = async () => {
+      try {
+        const tcrData = await fetcher.getTcr();
+        if (!cancelled && tcrData) {
+          setTcrValue(tcrData.tcr);
+          setIsRecoveryMode(tcrData.recovery);
+        }
+      } catch {
+        if (!cancelled) {
+          setTcrValue(null);
+          setIsRecoveryMode(null);
+        }
+      }
+    };
+
+    loadTcr();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [fetcher]);
+
+  useEffect(() => {
     if (!wallet.account) {
       setHints(null);
       setSimulation(null);
@@ -325,11 +352,55 @@ export const RedemptionDialog = ({
     }
   };
 
-  const handleRedeem = async () => {
-    if (!maker || !hints) {
-      setRedemptionError("Run a successful simulation before redeeming.");
-      return;
+  const refreshHintsForRedemption = async () => {
+    if (!maker) {
+      setRedemptionError(
+        "Redemption helpers are still loading. Try again shortly."
+      );
+      return null;
     }
+    if (!wallet.account) {
+      setRedemptionError("Connect a wallet to redeem.");
+      return null;
+    }
+    try {
+      setStatus("Refreshing redemption hints…");
+      const iterations = sanitizeIterations(iterationInput);
+      const nextHints = await maker.getRedemptionHintsForAmount(
+        amountInput,
+        iterations
+      );
+      if (nextHints.truncatedAmount === 0n) {
+        setHints(null);
+        setSimulation(null);
+        setStatus("No redeemable troves for this amount");
+        setRedemptionError(
+          "HintHelper returned zero redeemable amount. Try a different amount or wait for troves to update."
+        );
+        return null;
+      }
+      setStatus("Estimating execution and gas…");
+      const sim = await maker.simulateRedemption(
+        nextHints,
+        wallet.account as `0x${string}`,
+        BigInt(iterations)
+      );
+      setHints(nextHints);
+      setSimulation(sim);
+      return { hints: nextHints, maxIterations: BigInt(iterations) };
+    } catch (err) {
+      setStatus("Unable to refresh redemption hints");
+      setRedemptionError(
+        formatReadableError(
+          err,
+          "Failed to refresh hints before executing redemption."
+        )
+      );
+      return null;
+    }
+  };
+
+  const handleRedeem = async () => {
     if (!wallet.walletClient) {
       setRedemptionError(
         "Connect a wallet that can sign transactions to execute the redemption."
@@ -340,16 +411,22 @@ export const RedemptionDialog = ({
     try {
       setIsRedeeming(true);
       setRedemptionError(null);
+      const latestData = await refreshHintsForRedemption();
+      if (!latestData) {
+        return;
+      }
       setStatus("Submitting redemption transaction…");
-      const iterations = sanitizeIterations(iterationInput);
-      const result = await maker.executeRedemption(hints, {
-        maxIterations: BigInt(iterations),
+      const result = await maker.executeRedemption(latestData.hints, {
+        maxIterations: latestData.maxIterations,
       });
       setTxResult(result);
       setStatus("Redemption submitted");
       void refetchMusdBalance();
     } catch (err) {
-      setStatus("Redemption failed");
+      setHints(null);
+      setSimulation(null);
+      setTxResult(null);
+      setStatus("Simulation expired — rerun before redeeming.");
       setRedemptionError(
         formatReadableError(err, "Redemption transaction failed.")
       );
@@ -374,7 +451,7 @@ export const RedemptionDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-3xl flex-col gap-4 overflow-hidden sm:w-full sm:max-h-[90vh]">
+      <DialogContent className="flex h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-3xl flex-col gap-4 overflow-y-auto sm:h-auto sm:w-full sm:max-h-[90vh]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ArrowRightLeft className="h-5 w-5 text-primary" />
@@ -386,7 +463,7 @@ export const RedemptionDialog = ({
             health before attempting a transaction.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex-1 space-y-5 overflow-y-auto pr-1">
+        <div className="space-y-5">
           <Alert className="border border-primary/40 bg-primary/5">
             <Sparkles className="h-4 w-4" />
             <AlertTitle>Experimental tooling</AlertTitle>
