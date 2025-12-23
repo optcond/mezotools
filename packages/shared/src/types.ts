@@ -17,6 +17,23 @@ export const MezoChain = {
   },
 } as Chain;
 
+export const MezoChainTestnet = {
+  contracts: {
+    multicall3: {
+      address: "0xca11bde05977b3631167028862be2a173976ca11",
+    },
+  },
+  id: 31611,
+  name: "Mezo",
+  nativeCurrency: { name: "Bitcoin", symbol: "BTC", decimals: 18 },
+  rpcUrls: {
+    default: {
+      http: ["https://rpc.test.mezo.org"],
+      webSocket: ["wss://rpc-ws.test.mezo.org"],
+    },
+  },
+} as Chain;
+
 export enum ProviderType {
   HTTP = "http",
   WEBSOCKET = "websocket",
@@ -58,9 +75,14 @@ export const EthTokens: Record<string, { address: string; decimals: number }> =
 export const AppContracts: Record<string, `0x${string}`> = {
   ETH_MEZO_TBTC_BRIDGE: "0xf6680ea3b480ca2b72d96ea13ccaf2cfd8e6908c",
   MEZO_TROVE_MANAGER: "0x94AfB503dBca74aC3E4929BACEeDfCe19B93c193",
+  MEZO_TESTNET_TROVE_MANAGER: "0xE47c80e8c23f6B4A1aE41c34837a0599D5D16bb0",
   MEZO_BORROWER_OPERATIONS: "0x44b1bac67dDA612a41a58AAf779143B181dEe031",
+  MEZO_TESTNET_BORROWER_OPERATIONS:
+    "0xCdF7028ceAB81fA0C6971208e83fa7872994beE5",
   MEZO_HINT_HELPERS: "0xD267b3bE2514375A075fd03C3D9CBa6b95317DC3",
+  MEZO_TESTNET_HINT_HELPERS: "0x000000000000000000",
   MEZO_SORTED_TROVES: "0x8C5DB4C62BF29c1C4564390d10c20a47E0b2749f",
+  MEZO_TESTNET_SORTED_TROVES: "0x722E4D24FD6Ff8b0AC679450F3D91294607268fA",
 };
 
 export interface BridgeTokenDefinition {

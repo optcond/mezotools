@@ -1,6 +1,6 @@
 # Mezo Tools
 
-Monorepo for the Mezo chain tools. The workspace is managed with `pnpm` and contains the operational dashboard, data indexer, redemption dApp, and a shared TypeScript toolkit so protocol logic stays consistent across packages.
+Monorepo for the Mezo chain tools. The workspace is managed with `pnpm` and contains the operational dashboard, the real-time RPC board, data indexer, redemption dApp, and a shared TypeScript toolkit so protocol logic stays consistent across packages.
 
 ## Getting Started
 
@@ -40,6 +40,13 @@ Each package exposes its own scripts, but the root `pnpm` installation step only
 - Central TypeScript toolkit that exports protocol constants, ABIs, fetchers, Supabase repositories, and execution helpers such as `RedemptionMaker`.
 - Consumed by every other package to avoid duplicating business logic; extend this package first when protocol changes occur.
 - Develop with `pnpm --filter @mtools/shared dev`, build via `pnpm --filter @mtools/shared build`, and run Vitest suites using `pnpm --filter @mtools/shared test`.
+
+### `@mtools/rpcboard`
+
+- Operations-oriented heads-up display that listens to Mezo RPC in real time (via viem) and surfaces trove stats, block updates, liquidations/redemptions, and redemption helper tooling directly in the browser.
+- Reuses the shared `TroveFetcher`/`TroveFetcherWrapper`/`PriceFeedFetcher` logic and mirrors the redeemer’s `RedemptionMaker` so risk teams can monitor or simulate redemptions without wallet connectivity.
+- Supports mainnet vs testnet toggles, manual RPC overrides, manual BTC price inputs, and live block/watchlist metrics that are recalculated client-side.
+- Develop with `pnpm --filter @mtools/rpcboard dev`, build via `pnpm --filter @mtools/rpcboard build`, and run lint using `pnpm --filter @mtools/rpcboard lint`.
 
 ## Supabase + Environment Notes
 

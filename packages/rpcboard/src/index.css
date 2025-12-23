@@ -1,0 +1,234 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Liquity Dashboard Design System - Financial Monitoring Interface */
+
+@layer base {
+  :root {
+    /* Dark Financial Theme */
+    --background: 222 12% 8%;
+    --foreground: 220 15% 95%;
+
+    --card: 222 15% 10%;
+    --card-foreground: 220 15% 95%;
+
+    --popover: 222 15% 10%;
+    --popover-foreground: 220 15% 95%;
+
+    --primary: 171 100% 50%;
+    --primary-foreground: 222 12% 8%;
+    --primary-glow: 171 100% 60%;
+
+    --secondary: 220 15% 15%;
+    --secondary-foreground: 220 15% 85%;
+
+    --muted: 220 15% 12%;
+    --muted-foreground: 220 15% 60%;
+
+    --accent: 171 100% 50%;
+    --accent-foreground: 222 12% 8%;
+
+    --destructive: 0 85% 60%;
+    --destructive-foreground: 220 15% 95%;
+
+    --border: 220 15% 18%;
+    --input: 220 15% 15%;
+    --ring: 171 100% 50%;
+
+    --radius: 0.75rem;
+
+    /* Financial Risk Colors */
+    --risk-critical: 0 85% 60%; /* CR < 1.2 */
+    --risk-high: 25 95% 53%; /* CR 1.2-1.5 */
+    --risk-medium: 45 93% 58%; /* CR 1.5-2.0 */
+    --risk-low: 142 76% 36%; /* CR > 2.0 */
+    --risk-safe: 142 69% 58%;
+
+    /* Status Indicators */
+    --status-online: 142 76% 36%;
+    --status-offline: 0 85% 60%;
+    --status-warning: 45 93% 58%;
+
+    /* Chart Colors */
+    --chart-primary: 171 100% 50%;
+    --chart-secondary: 252 83% 67%;
+    --chart-tertiary: 45 93% 58%;
+    --chart-quaternary: 142 76% 36%;
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(
+      135deg,
+      hsl(171 100% 50%),
+      hsl(171 100% 60%)
+    );
+    --gradient-risk: linear-gradient(135deg, hsl(0 85% 60%), hsl(25 95% 53%));
+    --gradient-card: linear-gradient(
+      135deg,
+      hsl(222 15% 10%),
+      hsl(222 15% 12%)
+    );
+    --gradient-header: linear-gradient(
+      180deg,
+      hsl(222 15% 10%),
+      hsl(222 12% 8%)
+    );
+
+    /* Shadows */
+    --shadow-card: 0 4px 20px -4px hsl(222 12% 4% / 0.5);
+    --shadow-glow: 0 0 20px hsl(171 100% 50% / 0.3);
+    --shadow-risk: 0 0 15px hsl(0 85% 60% / 0.4);
+
+    /* Animations */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-bounce: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-mono;
+    background: var(--gradient-header);
+  }
+
+  /* Custom scrollbar for financial data */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: hsl(var(--muted));
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--primary));
+  }
+
+  /* Risk indicators */
+  .risk-critical {
+    color: hsl(var(--risk-critical));
+  }
+
+  .risk-high {
+    color: hsl(var(--risk-high));
+  }
+
+  .risk-medium {
+    color: hsl(var(--risk-medium));
+  }
+
+  .risk-low {
+    color: hsl(var(--risk-low));
+  }
+
+  .risk-safe {
+    color: hsl(var(--risk-safe));
+  }
+
+  /* Status indicators */
+  .status-online {
+    color: hsl(var(--status-online));
+  }
+
+  .status-offline {
+    color: hsl(var(--status-offline));
+  }
+
+  .status-warning {
+    color: hsl(var(--status-warning));
+  }
+
+  /* Animations */
+  .pulse-glow {
+    animation: pulse-glow 2s ease-in-out infinite alternate;
+  }
+
+  @keyframes pulse-glow {
+    from {
+      box-shadow: 0 0 5px hsl(var(--primary) / 0.5);
+    }
+    to {
+      box-shadow: 0 0 20px hsl(var(--primary) / 0.8),
+        0 0 30px hsl(var(--primary) / 0.4);
+    }
+  }
+
+  .animate-slide-up {
+    animation: slide-up 0.5s ease-out;
+  }
+
+  @keyframes slide-up {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
