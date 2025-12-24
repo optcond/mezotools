@@ -4,6 +4,8 @@ export { TroveFetcher } from "./lib/troveFetcher";
 export { TroveFetcherWrapper } from "./lib/troveFetcherWrapper";
 export { CowFiFetcher } from "./lib/cowFiFetcher";
 export { PriceFeedFetcher } from "./lib/priceFeedFetcher";
+export { GaugesFetcher } from "./lib/gaugesFetcher";
+export type { GaugeIncentive, GaugeBribeTokenReward } from "./lib/gaugesFetcher";
 export { createSupabase, SupabaseRepository } from "./lib/supabase";
 export { RedemptionMaker } from "./lib/redemptionMaker";
 export type {
