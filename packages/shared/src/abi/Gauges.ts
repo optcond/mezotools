@@ -29,6 +29,27 @@ export const PoolAbi = [
 
 export const VoterAbi = [
   {
+    inputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    name: "epochStart",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "pure",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    name: "epochNext",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "pure",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    name: "epochVoteEnd",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "pure",
+    type: "function",
+  },
+  {
     inputs: [{ internalType: "address", name: "", type: "address" }],
     name: "gauges",
     outputs: [{ internalType: "address", name: "", type: "address" }],

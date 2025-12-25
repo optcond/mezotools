@@ -69,6 +69,11 @@ export const BribesDialog = ({
     epochStart: bigint;
     supply: bigint;
   } | null>(null);
+  const [epochTiming, setEpochTiming] = useState<{
+    now: bigint;
+    epochEnd: bigint;
+    voteEnd: bigint;
+  } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -96,18 +101,29 @@ export const BribesDialog = ({
       setIsLoading(true);
       setError(null);
       try {
-        const [fetchedGauges, totalPower, veSupply, veSupplyAtEpoch] =
-          await Promise.all([
-            fetcher.fetchGaugeIncentives({ probeAdjacentEpochs: true }),
-            fetcher.getTotalVotingPower(),
-            fetcher.getTotalVeSupply(),
-            fetcher.getTotalVeSupplyAtEpochStart(),
-          ]);
+        const [
+          fetchedGauges,
+          totalPower,
+          veSupply,
+          veSupplyAtEpoch,
+          timing,
+        ] = await Promise.all([
+          fetcher.fetchGaugeIncentives({ probeAdjacentEpochs: true }),
+          fetcher.getTotalVotingPower(),
+          fetcher.getTotalVeSupply(),
+          fetcher.getTotalVeSupplyAtEpochStart(),
+          fetcher.getEpochTiming(),
+        ]);
         if (cancelled) return;
         setGauges(fetchedGauges);
         setTotalVotingPower(totalPower);
         setTotalVeSupply(veSupply);
         setEpochStartSupply(veSupplyAtEpoch);
+        setEpochTiming({
+          now: timing.now,
+          epochEnd: timing.epochEnd,
+          voteEnd: timing.voteEnd,
+        });
         setLastUpdated(new Date());
       } catch (err) {
         if (!cancelled) {
@@ -187,13 +203,47 @@ export const BribesDialog = ({
     return formatVeBtc(epochStartSupply.supply);
   };
 
+  const formatCountdown = (seconds: bigint) => {
+    if (seconds <= 0n) return "0m";
+    const totalSeconds = Number(seconds);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    if (hours > 0) {
+      return `${hours}h ${minutes}m`;
+    }
+    return `${minutes}m`;
+  };
+
+  const epochEndsIn =
+    epochTiming && epochTiming.epochEnd > epochTiming.now
+      ? formatCountdown(epochTiming.epochEnd - epochTiming.now)
+      : "—";
+
+  const voteClosesAt =
+    epochTiming && epochTiming.voteEnd > 0n
+      ? new Date(Number(epochTiming.voteEnd) * 1000).toLocaleString()
+      : "—";
+
+  const refreshLabel = lastUpdated
+    ? lastUpdated.toLocaleTimeString()
+    : null;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-5xl flex-col gap-4 overflow-hidden sm:w-full sm:max-h-[90vh]">
         <DialogHeader>
           <DialogTitle>Gauge bribes</DialogTitle>
           <DialogDescription className="space-y-2 text-sm">
-            <p>Bribes and vote weights refresh every minute.</p>
+            <p>
+              Bribes and vote weights refresh every minute
+              {refreshLabel ? (
+                <span className="text-foreground">
+                  {" "}
+                  · Updated {refreshLabel}
+                </span>
+              ) : null}
+              .
+            </p>
             <div className="grid gap-3 text-xs text-muted-foreground sm:grid-cols-2 lg:grid-cols-3">
               <div className="space-y-1 rounded-lg border border-card-border/60 bg-muted/20 p-3">
                 <div className="text-sm font-semibold text-foreground">
@@ -203,6 +253,24 @@ export const BribesDialog = ({
                   Total veBTC supply (live)
                 </div>
                 <p>Current decayed voting power across all locks.</p>
+              </div>
+              <div className="space-y-1 rounded-lg border border-card-border/60 bg-muted/20 p-3">
+                <div className="text-sm font-semibold text-foreground">
+                  {epochEndsIn}
+                </div>
+                <div className="font-medium text-foreground">
+                  Epoch ends in
+                </div>
+                <p>Time remaining until the current epoch ends.</p>
+              </div>
+              <div className="space-y-1 rounded-lg border border-card-border/60 bg-muted/20 p-3">
+                <div className="text-sm font-semibold text-foreground">
+                  {voteClosesAt}
+                </div>
+                <div className="font-medium text-foreground">
+                  Voting closes
+                </div>
+                <p>Snapshot voting window cutoff time.</p>
               </div>
               <div className="space-y-1 rounded-lg border border-card-border/60 bg-muted/20 p-3">
                 <div className="text-sm font-semibold text-foreground">
@@ -231,15 +299,6 @@ export const BribesDialog = ({
                 </div>
                 <p>Voting power at the start of the current epoch.</p>
               </div>
-              {lastUpdated && (
-                <div className="space-y-1 rounded-lg border border-card-border/60 bg-muted/20 p-3">
-                  <div className="text-sm font-semibold text-foreground">
-                    {lastUpdated.toLocaleTimeString()}
-                  </div>
-                  <div className="font-medium text-foreground">Updated</div>
-                  <p>Latest refresh timestamp.</p>
-                </div>
-              )}
             </div>
           </DialogDescription>
         </DialogHeader>

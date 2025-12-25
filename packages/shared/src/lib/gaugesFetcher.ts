@@ -456,6 +456,52 @@ export class GaugesFetcher {
     return { epochStart, supply };
   }
 
+  async getEpochTiming(): Promise<{
+    now: bigint;
+    epochStart: bigint;
+    epochEnd: bigint;
+    voteEnd: bigint;
+  }> {
+    const voterAddress = this.config.voterAddress ?? AppContracts.MEZO_VOTER;
+    const block = await this.client.getBlock();
+    const now = block.timestamp;
+    const [epochStart, epochEnd, voteEnd] = (await this.client.multicall({
+      contracts: [
+        {
+          address: voterAddress,
+          abi: VoterAbi,
+          functionName: "epochStart",
+          args: [now],
+        },
+        {
+          address: voterAddress,
+          abi: VoterAbi,
+          functionName: "epochNext",
+          args: [now],
+        },
+        {
+          address: voterAddress,
+          abi: VoterAbi,
+          functionName: "epochVoteEnd",
+          args: [now],
+        },
+      ],
+    })) as {
+      status: "success" | "failure";
+      result?: unknown;
+    }[];
+
+    const toBigint = (value: unknown) =>
+      typeof value === "bigint" ? value : 0n;
+
+    return {
+      now,
+      epochStart: toBigint(epochStart?.result),
+      epochEnd: toBigint(epochEnd?.result),
+      voteEnd: toBigint(voteEnd?.result),
+    };
+  }
+
   private async multicallInChunks(
     contracts: MulticallContract[],
     batchSize: number
