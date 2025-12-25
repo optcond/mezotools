@@ -54,6 +54,30 @@ export const MezoTokens: Record<string, { address: string; decimals: number }> =
       address: "0xdD468A1DDc392dcdbEf6db6e34E89AA338F9F186",
       decimals: 18,
     },
+    mcbBTC: {
+      address: "0x6a7CD8E1384d49f502b4A4CE9aC9eb320835c5d7",
+      decimals: 8,
+    },
+    mUSDT: {
+      address: "0xeB5a5d39dE4Ea42C2Aa6A57EcA2894376683bB8E",
+      decimals: 6,
+    },
+    mUSDC: {
+      address: "0x04671C72Aab5AC02A03c1098314b1BB6B560c197",
+      decimals: 6,
+    },
+    mT: {
+      address: "0xaaC423eDC4E3ee9ef81517e8093d52737165b71F",
+      decimals: 18,
+    },
+    mSolvBTC: {
+      address: "0xa10aD2570ea7b93d19fDae6Bd7189fF4929Bc747",
+      decimals: 18,
+    },
+    mxSolvBTC: {
+      address: "0xdF708431162Ba247dDaE362D2c919e0fbAfcf9DE",
+      decimals: 18,
+    },
   };
 
 export const EthTokens: Record<string, { address: string; decimals: number }> =
