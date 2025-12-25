@@ -5,6 +5,7 @@ import { Header } from "@/components/Header";
 import { BridgedAssetsDialog } from "@/components/BridgedAssetsDialog";
 import { DebtCalculatorDialog } from "@/components/DebtCalculatorDialog";
 import { RedemptionDialog } from "@/components/RedeemDialog";
+import { BribesDialog } from "@/components/BribesDialog";
 // import { SwapDialog } from "@/components/SwapDialog";
 import { useMonitorData } from "@/hooks/useMonitorData";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -117,6 +118,7 @@ const Index = () => {
   const [isBridgedAssetsOpen, setIsBridgedAssetsOpen] = useState(false);
   const [isDebtCalculatorOpen, setIsDebtCalculatorOpen] = useState(false);
   const [isRedemptionDialogOpen, setIsRedemptionDialogOpen] = useState(false);
+  const [isBribesDialogOpen, setIsBribesDialogOpen] = useState(false);
   // const [isSwapDialogOpen, setIsSwapDialogOpen] = useState(false);
 
   const latestMetric = dailyMetrics[0];
@@ -209,6 +211,7 @@ const Index = () => {
         onBridgedAssetsClick={() => setIsBridgedAssetsOpen(true)}
         onDebtCalculatorClick={() => setIsDebtCalculatorOpen(true)}
         onRedeemClick={() => setIsRedemptionDialogOpen(true)}
+        onBribesClick={() => setIsBribesDialogOpen(true)}
         // onSwapClick={() => setIsSwapDialogOpen(true)}
       />
 
@@ -307,6 +310,11 @@ const Index = () => {
         open={isRedemptionDialogOpen}
         onOpenChange={setIsRedemptionDialogOpen}
         wallet={wallet}
+      />
+      <BribesDialog
+        open={isBribesDialogOpen}
+        onOpenChange={setIsBribesDialogOpen}
+        btcPrice={systemMetrics.btcPrice}
       />
       {/* <SwapDialog open={isSwapDialogOpen} onOpenChange={setIsSwapDialogOpen} /> */}
     </div>

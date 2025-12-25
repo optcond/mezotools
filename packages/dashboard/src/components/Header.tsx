@@ -24,6 +24,7 @@ interface HeaderProps {
   onDebtCalculatorClick?: () => void;
   onSwapClick?: () => void;
   onRedeemClick?: () => void;
+  onBribesClick?: () => void;
 }
 
 export const Header = ({
@@ -36,6 +37,7 @@ export const Header = ({
   onDebtCalculatorClick,
   onSwapClick,
   onRedeemClick,
+  onBribesClick,
 }: HeaderProps) => {
   const updatedLabel = lastUpdatedAt
     ? formatDistanceToNow(new Date(lastUpdatedAt), { addSuffix: true })
@@ -97,6 +99,14 @@ export const Header = ({
               onClick={onRedeemClick}
             >
               Redeem
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="border border-primary bg-transparent text-primary hover:bg-primary/10 hover:text-primary"
+              onClick={onBribesClick}
+            >
+              Bribes
             </Button>
             <Button
               asChild

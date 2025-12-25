@@ -1,9 +1,10 @@
-import { PublicClient } from "viem";
+import { Abi, PublicClient } from "viem";
 import {
   BribeVotingRewardAbi,
   PoolAbi,
   PoolFactoryAbi,
   VoterAbi,
+  VotingEscrowAbi,
 } from "../abi/Gauges";
 import { AppContracts } from "../types";
 
@@ -32,6 +33,7 @@ export interface GaugeIncentive {
 export interface GaugesFetcherConfig {
   poolFactoryAddress?: `0x${string}`;
   voterAddress?: `0x${string}`;
+  veAddress?: `0x${string}`;
   multicallBatchSize?: number;
   probeAdjacentEpochs?: boolean;
 }
@@ -62,8 +64,16 @@ interface BribeRewards {
   rewards: GaugeBribeTokenReward[];
 }
 
-type MulticallContract =
-  Parameters<PublicClient["multicall"]>[0]["contracts"][number];
+type MulticallContract = {
+  address: `0x${string}`;
+  abi: Abi;
+  functionName: string;
+  args?: readonly unknown[];
+};
+type MulticallResult = {
+  status: "success" | "failure";
+  result?: unknown;
+};
 
 export class GaugesFetcher {
   constructor(
@@ -257,12 +267,12 @@ export class GaugesFetcher {
     for (const [bribe, meta] of bribeMeta.entries()) {
       for (let i = 0; i < meta.rewardCount; i++) {
         rewardTokenCalls.push({
-          address: bribe,
+          address: bribe as `0x${string}`,
           abi: BribeVotingRewardAbi,
           functionName: "rewards",
           args: [BigInt(i)],
         });
-        rewardTokenMeta.push({ bribe });
+        rewardTokenMeta.push({ bribe: bribe as `0x${string}` });
       }
       meta.rewards = [];
     }
@@ -283,17 +293,19 @@ export class GaugesFetcher {
     }
 
     const rewardAmountCalls: MulticallContract[] = [];
-    const rewardAmountMeta: Array<{ bribe: `0x${string}`; token: `0x${string}` }> =
-      [];
+    const rewardAmountMeta: Array<{
+      bribe: `0x${string}`;
+      token: `0x${string}`;
+    }> = [];
     for (const [bribe, meta] of bribeMeta.entries()) {
       for (const token of meta.rewards) {
         rewardAmountCalls.push({
-          address: bribe,
+          address: bribe as `0x${string}`,
           abi: BribeVotingRewardAbi,
           functionName: "tokenRewardsPerEpoch",
           args: [token, meta.epochStart],
         });
-        rewardAmountMeta.push({ bribe, token });
+        rewardAmountMeta.push({ bribe: bribe as `0x${string}`, token });
       }
     }
 
@@ -330,7 +342,7 @@ export class GaugesFetcher {
           if (rewardAmounts.get(key) !== 0n) continue;
           if (meta.epochStart >= meta.duration) {
             fallbackCalls.push({
-              address: bribe,
+              address: bribe as `0x${string}`,
               abi: BribeVotingRewardAbi,
               functionName: "tokenRewardsPerEpoch",
               args: [token, meta.epochStart - meta.duration],
@@ -338,7 +350,7 @@ export class GaugesFetcher {
             fallbackMeta.push({ key, direction: "previous" });
           }
           fallbackCalls.push({
-            address: bribe,
+            address: bribe as `0x${string}`,
             abi: BribeVotingRewardAbi,
             functionName: "tokenRewardsPerEpoch",
             args: [token, meta.epochStart + meta.duration],
@@ -399,15 +411,62 @@ export class GaugesFetcher {
     });
   }
 
+  async getTotalVotingPower(): Promise<bigint> {
+    const voterAddress = this.config.voterAddress ?? AppContracts.MEZO_VOTER;
+    return (await this.client.readContract({
+      address: voterAddress,
+      abi: VoterAbi,
+      functionName: "totalWeight",
+    })) as bigint;
+  }
+
+  async getTotalVeSupply(): Promise<bigint> {
+    const veAddress = this.config.veAddress ?? AppContracts.MEZO_VE;
+    return (await this.client.readContract({
+      address: veAddress,
+      abi: VotingEscrowAbi,
+      functionName: "totalVotingPower",
+    })) as bigint;
+  }
+
+  async getTotalVeSupplyAt(timestamp: bigint): Promise<bigint | null> {
+    const veAddress = this.config.veAddress ?? AppContracts.MEZO_VE;
+    try {
+      return (await this.client.readContract({
+        address: veAddress,
+        abi: VotingEscrowAbi,
+        functionName: "totalVotingPowerAt",
+        args: [timestamp],
+      })) as bigint;
+    } catch {
+      return null;
+    }
+  }
+
+  async getTotalVeSupplyAtEpochStart(
+    durationSeconds: bigint = 7n * 24n * 60n * 60n
+  ): Promise<{ epochStart: bigint; supply: bigint } | null> {
+    const block = await this.client.getBlock();
+    const epochStart =
+      durationSeconds > 0n
+        ? (block.timestamp / durationSeconds) * durationSeconds
+        : 0n;
+    const supply = await this.getTotalVeSupplyAt(epochStart);
+    if (supply === null) return null;
+    return { epochStart, supply };
+  }
+
   private async multicallInChunks(
-    contracts: Parameters<PublicClient["multicall"]>[0]["contracts"],
+    contracts: MulticallContract[],
     batchSize: number
-  ): Promise<Awaited<ReturnType<PublicClient["multicall"]>>> {
-    const results: Awaited<ReturnType<PublicClient["multicall"]>> = [];
+  ): Promise<MulticallResult[]> {
+    const results: MulticallResult[] = [];
     const chunkSize = Math.max(1, batchSize);
     for (let i = 0; i < contracts.length; i += chunkSize) {
       const chunk = contracts.slice(i, i + chunkSize);
-      const response = await this.client.multicall({ contracts: chunk });
+      const response = (await this.client.multicall({
+        contracts: chunk,
+      })) as MulticallResult[];
       results.push(...response);
     }
     return results;

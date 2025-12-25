@@ -49,6 +49,13 @@ export const VoterAbi = [
     stateMutability: "view",
     type: "function",
   },
+  {
+    inputs: [],
+    name: "totalWeight",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
 ] as const satisfies Abi;
 
 export const BribeVotingRewardAbi = [
@@ -79,6 +86,23 @@ export const BribeVotingRewardAbi = [
       { internalType: "uint256", name: "", type: "uint256" },
     ],
     name: "tokenRewardsPerEpoch",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+] as const satisfies Abi;
+
+export const VotingEscrowAbi = [
+  {
+    inputs: [],
+    name: "totalVotingPower",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    name: "totalVotingPowerAt",
     outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
     stateMutability: "view",
     type: "function",
