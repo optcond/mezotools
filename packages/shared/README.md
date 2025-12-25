@@ -5,7 +5,7 @@ Shared is the TypeScript toolbox that every other package depends on. It central
 ## Exposed modules
 
 - **Network + types** - `MezoChain`, token metadata, trove / bridge / Supabase row types, and ABI exports.
-- **Fetchers** - `TroveFetcher`, `TroveFetcherWrapper`, `PriceFeedFetcher`, `BridgeAssetFetcher`, `CowFiFetcher`.
+- **Fetchers** - `TroveFetcher`, `TroveFetcherWrapper`, `PriceFeedFetcher`, `BridgeAssetFetcher`, `CowFiFetcher`, `GaugesFetcher`.
 - **Supabase repository** - `createSupabase` and `SupabaseRepository` wrap inserts/updates for every table the indexer maintains.
 - **Execution helpers** - `RedemptionMaker` computes redemption hints, simulations, and transactions using the fetchers above.
 
@@ -56,6 +56,11 @@ const redemptionMaker = new RedemptionMaker(client, fetcherWrapper, /* wallet cl
 const supabase = createSupabase({ url: process.env.SUPABASE_URL!, serviceKey: process.env.SUPABASE_SERVICE_ROLE_KEY! });
 const repository = new SupabaseRepository(supabase);
 await repository.upsertTroves(await fetcherWrapper.getTrovesWithData(await fetcherWrapper.getBtcPrice()));
+
+const gaugesFetcher = new GaugesFetcher(client);
+const incentives = await gaugesFetcher.fetchGaugeIncentives({ probeAdjacentEpochs: true });
+const totalVotes = await gaugesFetcher.getTotalVotingPower();
+const totalVeSupply = await gaugesFetcher.getTotalVeSupply();
 ```
 
 ## Project layout
@@ -67,6 +72,7 @@ packages/shared
 |   |-- lib/
 |   |   |-- bridgeAssetFetcher.ts
 |   |   |-- cowFiFetcher.ts
+|   |   |-- gaugesFetcher.ts
 |   |   |-- priceFeedFetcher.ts
 |   |   |-- redemptionMaker.ts
 |   |   |-- supabase.ts
