@@ -17,6 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Vote } from "lucide-react";
 import {
   GaugesFetcher,
   GaugeIncentive,
@@ -232,7 +233,10 @@ export const BribesDialog = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-5xl flex-col gap-4 overflow-hidden sm:w-full sm:max-h-[90vh]">
         <DialogHeader>
-          <DialogTitle>Gauge bribes</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            <Vote className="h-5 w-5 text-primary" />
+            Gauge bribes
+          </DialogTitle>
           <DialogDescription className="space-y-2 text-sm">
             <p>
               Bribes and vote weights refresh every minute

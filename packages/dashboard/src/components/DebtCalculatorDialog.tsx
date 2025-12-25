@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
+import { Calculator } from "lucide-react";
 import type { Trove } from "@/hooks/useMonitorData";
 
 interface DebtCalculatorDialogProps {
@@ -330,7 +331,10 @@ export const DebtCalculatorDialog = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-3xl overflow-y-auto sm:h-auto sm:w-full sm:max-h-[90vh]">
         <DialogHeader>
-          <DialogTitle>Debt calculator</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            <Calculator className="h-5 w-5 text-primary" />
+            Debt calculator
+          </DialogTitle>
           <DialogDescription className="space-y-1 text-sm">
             <p>
               Evaluate how changes to your position impact liquidation risk.

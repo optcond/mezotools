@@ -5,6 +5,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Link2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -49,7 +50,10 @@ export const BridgedAssetsDialog = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-3xl flex-col gap-4 overflow-hidden sm:w-full sm:max-h-[90vh]">
         <DialogHeader>
-          <DialogTitle>Bridged assets</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            <Link2 className="h-5 w-5 text-primary" />
+            Bridged assets
+          </DialogTitle>
           <DialogDescription className="space-y-1 text-sm">
             <p>
               Live balances held by the Mezo bridge contract on Ethereum. Data
