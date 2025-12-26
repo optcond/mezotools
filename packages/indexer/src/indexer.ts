@@ -13,6 +13,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import {
   BridgeAssetFetcher,
   CowFiFetcher,
+  GaugesFetcher,
   MezoChain,
   ProviderType,
   TroveFetcher,
@@ -35,6 +36,7 @@ interface IndexerDependencies {
   cowFi: CowFiFetcher;
   mezoClient: PublicClient;
   ethClient: PublicClient;
+  gaugesFetcher: GaugesFetcher;
 }
 
 export class Indexer {
@@ -94,6 +96,7 @@ export class Indexer {
 
     // bridgeAssetFetcher
     const bridgeAssetFetcher = new BridgeAssetFetcher(ethClient);
+    const gaugesFetcher = new GaugesFetcher(mezoClient);
 
     // repository
     const supabaseClient = createSupabase({
@@ -110,6 +113,7 @@ export class Indexer {
       cowFi,
       mezoClient,
       ethClient,
+      gaugesFetcher,
     });
   }
 
@@ -139,6 +143,10 @@ export class Indexer {
       systemState,
       troves,
       swapData,
+      gaugeIncentives,
+      epochTiming,
+      totalVeSupply,
+      totalVotingPower,
     ] = await Promise.all([
       /* blocks information */
       this.deps.repository.getLastProcessedBlock(),
@@ -153,6 +161,14 @@ export class Indexer {
 
       /* cowfi swap calc */
       this.deps.cowFi.getMUSDSellQuote(),
+
+      /* gauge incentives */
+      this.deps.gaugesFetcher.fetchGaugeIncentives({
+        probeAdjacentEpochs: true,
+      }),
+      this.deps.gaugesFetcher.getEpochTiming(),
+      this.deps.gaugesFetcher.getTotalVeSupply(),
+      this.deps.gaugesFetcher.getTotalVotingPower(),
     ]);
     const currentBlockNumber = Number(currentBlock);
 
@@ -171,12 +187,30 @@ export class Indexer {
       musdToUsdcPrice,
     };
 
+    const veSupplyEpochStart =
+      (await this.deps.gaugesFetcher.getTotalVeSupplyAt(
+        epochTiming.epochStart
+      )) ?? 0n;
+    const totalVotesTracked = gaugeIncentives.reduce(
+      (acc, gauge) => acc + gauge.votes,
+      0n
+    );
+
     await Promise.all([
       this.deps.repository.upsertTroves(troves),
       this.deps.repository.storeSystemSnapshot(systemSnapshot),
       this.deps.repository.storeDailyMetrics(systemSnapshot, troves.length),
+      this.deps.repository.upsertGaugeState({
+        epochEnd: epochTiming.epochEnd,
+        voteEnd: epochTiming.voteEnd,
+        veSupplyLive: totalVeSupply,
+        totalVotesSnapshot: totalVotingPower,
+        totalVotesTracked,
+        veSupplyEpochStart,
+      }),
+      this.deps.repository.upsertGauges(gaugeIncentives),
     ]);
-    console.log("Upserted troves and stored system snapshot");
+    console.log("Upserted troves, gauges, and stored system snapshot");
 
     if (bridgeAssets.length === 0) {
       console.warn("No bridge assets fetched during sync");

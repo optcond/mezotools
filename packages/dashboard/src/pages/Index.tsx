@@ -107,7 +107,6 @@ const Index = () => {
     redemptions,
     dailyMetrics,
     indexerState,
-    bridgeAssets,
     isLoading,
     isFetching,
     error,
@@ -296,8 +295,6 @@ const Index = () => {
       <BridgedAssetsDialog
         open={isBridgedAssetsOpen}
         onOpenChange={setIsBridgedAssetsOpen}
-        assets={bridgeAssets}
-        isLoading={isLoading}
       />
       <DebtCalculatorDialog
         open={isDebtCalculatorOpen}

@@ -4,6 +4,7 @@ import { exit } from "process";
 
 async function main() {
   let indexer: Indexer | undefined;
+  console.info(`[${new Date().toISOString()}] Indexer run started`);
   try {
     indexer = await Indexer.createFromEnv();
     await indexer.run();

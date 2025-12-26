@@ -92,3 +92,31 @@ export interface BridgeAssetRow {
   decimals: number;
   updated_at: string;
 }
+
+export interface GaugeStateRow {
+  key: string;
+  epoch_end: number;
+  vote_end: number;
+  ve_supply_live: string;
+  total_votes_snapshot: string;
+  total_votes_tracked: string;
+  ve_supply_epoch_start: string;
+  updated_at: string;
+}
+
+export interface GaugeBribeRow {
+  token: string;
+  amount: string;
+}
+
+export interface GaugeRow {
+  gauge: string;
+  pool: string;
+  pool_name: string | null;
+  bribe: string;
+  votes: string;
+  duration: number;
+  epoch_start: number;
+  bribes: GaugeBribeRow[];
+  updated_at: string;
+}

@@ -11,6 +11,9 @@ import type {
   SystemSnapshot,
   DailyMetricsRow,
   BridgeAssetRow,
+  GaugeStateRow,
+  GaugeRow,
+  GaugeBribeRow,
 } from "../supabase.types";
 import type {
   FTroveData,
@@ -18,6 +21,7 @@ import type {
   TroveRedemptionEvent,
 } from "../trove.types";
 import type { BridgeAssetBalance } from "../bridge.types";
+import type { GaugeIncentive } from "./gaugesFetcher";
 
 export function createSupabase(options: SupabaseOptions): SupabaseClient {
   return createClient(options.url, options.serviceKey, {
@@ -368,6 +372,68 @@ export class SupabaseRepository {
 
     if (error) {
       throw new Error(`Failed to upsert bridge assets: ${error.message}`);
+    }
+  }
+
+  async upsertGaugeState(state: {
+    epochEnd: bigint;
+    voteEnd: bigint;
+    veSupplyLive: bigint;
+    totalVotesSnapshot: bigint;
+    totalVotesTracked: bigint;
+    veSupplyEpochStart: bigint;
+  }): Promise<void> {
+    const row: GaugeStateRow = {
+      key: "current",
+      epoch_end: Number(state.epochEnd),
+      vote_end: Number(state.voteEnd),
+      ve_supply_live: state.veSupplyLive.toString(),
+      total_votes_snapshot: state.totalVotesSnapshot.toString(),
+      total_votes_tracked: state.totalVotesTracked.toString(),
+      ve_supply_epoch_start: state.veSupplyEpochStart.toString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await this.from("gauge_state").upsert(row, {
+      onConflict: "key",
+    });
+
+    if (error) {
+      throw new Error(`Failed to upsert gauge state: ${error.message}`);
+    }
+  }
+
+  async upsertGauges(gauges: GaugeIncentive[]): Promise<void> {
+    if (gauges.length === 0) {
+      return;
+    }
+
+    const updatedAt = new Date().toISOString();
+    const rows: GaugeRow[] = gauges.map((gauge) => {
+      const bribes: GaugeBribeRow[] = gauge.rewards.map((reward) => ({
+        token: reward.token.toLowerCase(),
+        amount: reward.amount.toString(),
+      }));
+
+      return {
+        gauge: gauge.gauge.toLowerCase(),
+        pool: gauge.pool.toLowerCase(),
+        pool_name: gauge.poolName ?? null,
+        bribe: gauge.bribe.toLowerCase(),
+        votes: gauge.votes.toString(),
+        duration: Number(gauge.duration),
+        epoch_start: Number(gauge.epochStart),
+        bribes,
+        updated_at: updatedAt,
+      };
+    });
+
+    const { error } = await this.from("gauges").upsert(rows, {
+      onConflict: "gauge",
+    });
+
+    if (error) {
+      throw new Error(`Failed to upsert gauges: ${error.message}`);
     }
   }
 }

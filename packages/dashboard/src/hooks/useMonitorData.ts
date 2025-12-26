@@ -11,7 +11,6 @@ export type Redemption = Tables<"redemptions"> & {
 };
 export type DailyMetric = Tables<"system_metrics_daily">;
 export type IndexerState = Tables<"indexer_state"> | null;
-export type BridgeAsset = Tables<"bridge_assets">;
 
 interface MonitorDataResponse {
   troves: Trove[];
@@ -19,7 +18,6 @@ interface MonitorDataResponse {
   redemptions: Redemption[];
   dailyMetrics: DailyMetric[];
   indexerState: IndexerState;
-  bridgeAssets: BridgeAsset[];
 }
 
 const throwIfError = <T>(result: {
@@ -49,7 +47,6 @@ const fetchMonitorData = async (): Promise<MonitorDataResponse> => {
     redsRes,
     metricsRes,
     indexerRes,
-    bridgeAssetsRes,
   ] = await Promise.all([
       supabase
         .from("troves")
@@ -75,10 +72,6 @@ const fetchMonitorData = async (): Promise<MonitorDataResponse> => {
         .select("*")
         .eq("key", "latest_block")
         .maybeSingle(),
-      supabase
-        .from("bridge_assets")
-        .select("*")
-        .order("token_symbol", { ascending: true }),
     ]);
 
   const troves = throwIfError<Trove[]>(trovesRes);
@@ -86,7 +79,6 @@ const fetchMonitorData = async (): Promise<MonitorDataResponse> => {
   const redemptions = throwIfError<Redemption[]>(redsRes);
   const dailyMetrics = throwIfError<DailyMetric[]>(metricsRes);
   const indexerState = handleMaybeSingle(indexerRes);
-  const bridgeAssets = throwIfError<BridgeAsset[]>(bridgeAssetsRes);
 
   return {
     troves,
@@ -94,7 +86,6 @@ const fetchMonitorData = async (): Promise<MonitorDataResponse> => {
     redemptions,
     dailyMetrics,
     indexerState,
-    bridgeAssets,
   };
 };
 
@@ -115,7 +106,6 @@ export const useMonitorData = () => {
     redemptions: data?.redemptions ?? [],
     dailyMetrics: data?.dailyMetrics ?? [],
     indexerState: data?.indexerState ?? null,
-    bridgeAssets: data?.bridgeAssets ?? [],
     isLoading,
     isFetching,
     error: error instanceof Error ? error.message : null,

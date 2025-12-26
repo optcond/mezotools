@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Dialog,
   DialogContent,
@@ -18,15 +19,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Vote } from "lucide-react";
-import {
-  GaugesFetcher,
-  GaugeIncentive,
-  MezoChain,
-  MezoTokens,
-} from "@mtools/shared";
-import { createPublicClient, formatUnits, http, PublicClient } from "viem";
-
-const REFRESH_INTERVAL_MS = 60_000;
+import type { GaugeIncentive } from "@mtools/shared";
+import { MezoTokens } from "@mtools/shared";
+import { formatUnits } from "viem";
+import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
 const EPOCHS_PER_YEAR = 52n;
 
 const formatDecimalString = (value?: string | null, fractionDigits = 4) => {
@@ -52,6 +49,9 @@ const truncateAddress = (address: string) => {
 const sumBribes = (rewards: GaugeIncentive["rewards"]) =>
   rewards.reduce((acc, reward) => acc + reward.amount, 0n);
 
+type GaugeRow = Tables<"gauges">;
+type GaugeStateRow = Tables<"gauge_state">;
+
 interface BribesDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -63,92 +63,116 @@ export const BribesDialog = ({
   onOpenChange,
   btcPrice,
 }: BribesDialogProps) => {
-  const [gauges, setGauges] = useState<GaugeIncentive[]>([]);
-  const [totalVotingPower, setTotalVotingPower] = useState<bigint | null>(null);
-  const [totalVeSupply, setTotalVeSupply] = useState<bigint | null>(null);
-  const [epochStartSupply, setEpochStartSupply] = useState<{
-    epochStart: bigint;
-    supply: bigint;
-  } | null>(null);
-  const [epochTiming, setEpochTiming] = useState<{
-    now: bigint;
-    epochEnd: bigint;
-    voteEnd: bigint;
-  } | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const toBigInt = (value: string | number | null | undefined) => {
+    if (value === null || value === undefined) return 0n;
+    if (typeof value === "number") return BigInt(Math.trunc(value));
+    if (value === "") return 0n;
+    return BigInt(value);
+  };
 
-  const publicClient = useMemo(
-    () =>
-      createPublicClient({
-        chain: MezoChain,
-        transport: http(MezoChain.rpcUrls.default.http[0]),
-      }),
-    []
-  );
+  const parseBribes = (
+    bribes: GaugeRow["bribes"],
+    epochStart: bigint
+  ): GaugeIncentive["rewards"] => {
+    if (!Array.isArray(bribes)) return [];
+    const rewards: GaugeIncentive["rewards"] = [];
+    for (const item of bribes) {
+      if (!item || typeof item !== "object") continue;
+      const token =
+        "token" in item && typeof item.token === "string"
+          ? item.token
+          : null;
+      const amountValue =
+        "amount" in item ? (item as { amount?: unknown }).amount : null;
+      const amount =
+        typeof amountValue === "string"
+          ? amountValue
+          : typeof amountValue === "number"
+            ? Math.trunc(amountValue).toString()
+            : null;
+      if (!token || amount === null) continue;
+      rewards.push({
+        token: token as `0x${string}`,
+        amount: toBigInt(amount),
+        epochStart,
+      });
+    }
+    return rewards;
+  };
 
-  const fetcher = useMemo(
-    () => new GaugesFetcher(publicClient as PublicClient),
-    [publicClient]
-  );
-
-  useEffect(() => {
-    if (!open) return;
-    let cancelled = false;
-    let intervalId: ReturnType<typeof setInterval> | null = null;
-
-    const fetchData = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const [
-          fetchedGauges,
-          totalPower,
-          veSupply,
-          veSupplyAtEpoch,
-          timing,
-        ] = await Promise.all([
-          fetcher.fetchGaugeIncentives({ probeAdjacentEpochs: true }),
-          fetcher.getTotalVotingPower(),
-          fetcher.getTotalVeSupply(),
-          fetcher.getTotalVeSupplyAtEpochStart(),
-          fetcher.getEpochTiming(),
+  const query = useQuery({
+    queryKey: ["bribes-data"],
+    enabled: open,
+    refetchInterval: open ? 60_000 : false,
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
+    retry: 1,
+    queryFn: async () => {
+      const [{ data: gaugeState, error: gaugeStateError }, gaugesRes] =
+        await Promise.all([
+          supabase
+            .from("gauge_state")
+            .select("*")
+            .eq("key", "current")
+            .maybeSingle<GaugeStateRow>(),
+          supabase.from("gauges").select("*").order("votes", {
+            ascending: false,
+          }),
         ]);
-        if (cancelled) return;
-        setGauges(fetchedGauges);
-        setTotalVotingPower(totalPower);
-        setTotalVeSupply(veSupply);
-        setEpochStartSupply(veSupplyAtEpoch);
-        setEpochTiming({
-          now: timing.now,
-          epochEnd: timing.epochEnd,
-          voteEnd: timing.voteEnd,
-        });
-        setLastUpdated(new Date());
-      } catch (err) {
-        if (!cancelled) {
-          setError(
-            err instanceof Error ? err.message : "Failed to load gauge bribes."
-          );
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
-      }
-    };
 
-    fetchData();
-    intervalId = setInterval(fetchData, REFRESH_INTERVAL_MS);
-
-    return () => {
-      cancelled = true;
-      if (intervalId) {
-        clearInterval(intervalId);
+      if (gaugeStateError) {
+        throw new Error(gaugeStateError.message);
       }
-    };
-  }, [fetcher, open]);
+
+      if (gaugesRes.error) {
+        throw new Error(gaugesRes.error.message);
+      }
+
+      return {
+        gaugeState,
+        gauges: gaugesRes.data ?? [],
+      };
+    },
+  });
+
+  const gaugeState = query.data?.gaugeState ?? null;
+  const gaugeRows = query.data?.gauges ?? [];
+  const now = BigInt(Math.floor(Date.now() / 1000));
+  const epochTiming = gaugeState
+    ? {
+        now,
+        epochEnd: toBigInt(gaugeState.epoch_end),
+        voteEnd: toBigInt(gaugeState.vote_end),
+      }
+    : null;
+  const totalVeSupply = gaugeState
+    ? toBigInt(gaugeState.ve_supply_live)
+    : null;
+  const totalVotingPower = gaugeState
+    ? toBigInt(gaugeState.total_votes_snapshot)
+    : null;
+  const totalVotesTracked = gaugeState
+    ? toBigInt(gaugeState.total_votes_tracked)
+    : null;
+  const epochStartSupply = gaugeState
+    ? toBigInt(gaugeState.ve_supply_epoch_start)
+    : null;
+
+  const gauges = useMemo(() => {
+    return gaugeRows.map((row) => {
+      const epochStart = toBigInt(row.epoch_start);
+      return {
+        pool: row.pool as `0x${string}`,
+        poolName: row.pool_name ?? undefined,
+        gauge: row.gauge as `0x${string}`,
+        bribe: row.bribe as `0x${string}`,
+        votes: toBigInt(row.votes),
+        duration: toBigInt(row.duration),
+        epochStart,
+        rewards: parseBribes(row.bribes, epochStart),
+      };
+    });
+  }, [gaugeRows]);
 
   const tokenSymbolMap = useMemo(() => {
     const entries: Array<[string, string]> = Object.entries(MezoTokens).map(
@@ -194,25 +218,20 @@ export const BribesDialog = ({
       });
   }, [btcPrice, gauges]);
 
-  const totalVotesCast = useMemo(
-    () => gauges.reduce((acc, gauge) => acc + gauge.votes, 0n),
-    [gauges]
-  );
+  const totalVotesCast = totalVotesTracked;
 
   const formatEpochStartSupply = () => {
-    if (!epochStartSupply) return "—";
-    return formatVeBtc(epochStartSupply.supply);
+    if (epochStartSupply === null) return "—";
+    return formatVeBtc(epochStartSupply);
   };
 
   const formatCountdown = (seconds: bigint) => {
     if (seconds <= 0n) return "0m";
     const totalSeconds = Number(seconds);
-    const hours = Math.floor(totalSeconds / 3600);
+    const days = Math.floor(totalSeconds / 86400);
+    const hours = Math.floor((totalSeconds % 86400) / 3600);
     const minutes = Math.floor((totalSeconds % 3600) / 60);
-    if (hours > 0) {
-      return `${hours}h ${minutes}m`;
-    }
-    return `${minutes}m`;
+    return `${days}d ${hours}h ${minutes}m`;
   };
 
   const epochEndsIn =
@@ -221,12 +240,12 @@ export const BribesDialog = ({
       : "—";
 
   const voteClosesAt =
-    epochTiming && epochTiming.voteEnd > 0n
-      ? new Date(Number(epochTiming.voteEnd) * 1000).toLocaleString()
+    epochTiming && epochTiming.voteEnd > epochTiming.now
+      ? formatCountdown(epochTiming.voteEnd - epochTiming.now)
       : "—";
 
-  const refreshLabel = lastUpdated
-    ? lastUpdated.toLocaleTimeString()
+  const refreshLabel = query.dataUpdatedAt
+    ? new Date(query.dataUpdatedAt).toLocaleTimeString()
     : null;
 
   return (
@@ -239,7 +258,7 @@ export const BribesDialog = ({
           </DialogTitle>
           <DialogDescription className="space-y-2 text-sm">
             <p>
-              Bribes and vote weights refresh every minute
+              Bribes and vote weights refresh every minute while this dialog is open
               {refreshLabel ? (
                 <span className="text-foreground">
                   {" "}
@@ -308,19 +327,21 @@ export const BribesDialog = ({
         </DialogHeader>
 
         <div className="flex min-h-0 flex-1 flex-col">
-          {isLoading && gauges.length === 0 ? (
+          {query.isLoading && gauges.length === 0 ? (
             <div className="space-y-3">
               {Array.from({ length: 5 }).map((_, idx) => (
                 <Skeleton key={idx} className="h-20 w-full rounded-xl" />
               ))}
             </div>
-          ) : error ? (
+          ) : query.error ? (
             <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
-              {error}
+              {query.error instanceof Error
+                ? query.error.message
+                : "Failed to load gauge bribes."}
             </div>
           ) : gaugesWithTotals.length === 0 ? (
             <div className="rounded-xl border border-dashed border-card-border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
-              No gauges found yet. Try again after the next refresh.
+              No gauges found yet. Try again after the next indexer sync.
             </div>
           ) : (
             <ScrollArea className="flex-1 pr-4">

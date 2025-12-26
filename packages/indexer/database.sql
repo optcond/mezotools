@@ -44,6 +44,8 @@ create table public.price_feeds (
   constraint price_feeds_pkey primary key (id)
 ) TABLESPACE pg_default;
 
+create index IF not exists price_feeds_source_block_idx on public.price_feeds using btree (source, block_number desc) TABLESPACE pg_default;
+
 create table public.redemptions (
   id text not null,
   attempted_amount double precision not null,
@@ -85,6 +87,8 @@ create table public.system_snapshots (
   constraint system_snapshots_pkey primary key (id)
 ) TABLESPACE pg_default;
 
+create index IF not exists system_snapshots_recorded_at_idx on public.system_snapshots using btree (recorded_at desc) TABLESPACE pg_default;
+
 create table public.troves (
   owner text not null,
   collateral double precision not null,
@@ -94,3 +98,32 @@ create table public.troves (
   updated_at timestamp with time zone not null,
   constraint troves_pkey primary key (owner)
 ) TABLESPACE pg_default;
+
+create table public.gauge_state (
+  key text not null,
+  epoch_end bigint not null,
+  vote_end bigint not null,
+  ve_supply_live numeric not null,
+  total_votes_snapshot numeric not null,
+  total_votes_tracked numeric not null,
+  ve_supply_epoch_start numeric not null,
+  updated_at timestamp with time zone not null,
+  constraint gauge_state_pkey primary key (key)
+) TABLESPACE pg_default;
+
+create table public.gauges (
+  gauge text not null,
+  pool text not null,
+  pool_name text null,
+  bribe text not null,
+  votes numeric not null,
+  duration bigint not null,
+  epoch_start bigint not null,
+  bribes jsonb not null default '[]'::jsonb,
+  updated_at timestamp with time zone not null,
+  constraint gauges_pkey primary key (gauge)
+) TABLESPACE pg_default;
+
+create unique index IF not exists gauges_pool_idx on public.gauges using btree (pool) TABLESPACE pg_default;
+create index IF not exists gauges_epoch_idx on public.gauges using btree (epoch_start desc) TABLESPACE pg_default;
+create index IF not exists gauges_updated_at_idx on public.gauges using btree (updated_at desc) TABLESPACE pg_default;

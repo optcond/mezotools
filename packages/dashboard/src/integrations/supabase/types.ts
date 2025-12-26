@@ -215,6 +215,75 @@ export type Database = {
         }
         Relationships: []
       }
+      gauge_state: {
+        Row: {
+          epoch_end: string
+          key: string
+          total_votes_snapshot: string
+          total_votes_tracked: string
+          updated_at: string
+          ve_supply_epoch_start: string
+          ve_supply_live: string
+          vote_end: string
+        }
+        Insert: {
+          epoch_end: string
+          key: string
+          total_votes_snapshot: string
+          total_votes_tracked: string
+          updated_at?: string
+          ve_supply_epoch_start: string
+          ve_supply_live: string
+          vote_end: string
+        }
+        Update: {
+          epoch_end?: string
+          key?: string
+          total_votes_snapshot?: string
+          total_votes_tracked?: string
+          updated_at?: string
+          ve_supply_epoch_start?: string
+          ve_supply_live?: string
+          vote_end?: string
+        }
+        Relationships: []
+      }
+      gauges: {
+        Row: {
+          bribe: string
+          bribes: Json
+          duration: string
+          epoch_start: string
+          gauge: string
+          pool: string
+          pool_name: string | null
+          updated_at: string
+          votes: string
+        }
+        Insert: {
+          bribe: string
+          bribes?: Json
+          duration: string
+          epoch_start: string
+          gauge: string
+          pool: string
+          pool_name?: string | null
+          updated_at?: string
+          votes: string
+        }
+        Update: {
+          bribe?: string
+          bribes?: Json
+          duration?: string
+          epoch_start?: string
+          gauge?: string
+          pool?: string
+          pool_name?: string | null
+          updated_at?: string
+          votes?: string
+        }
+        Relationships: []
+      }
       troves: {
         Row: {
           collateral: number

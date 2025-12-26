@@ -1,3 +1,5 @@
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Dialog,
   DialogContent,
@@ -9,14 +11,15 @@ import { Link2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { BridgeAsset } from "@/hooks/useMonitorData";
+import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
 
 interface BridgedAssetsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  assets: BridgeAsset[];
-  isLoading?: boolean;
 }
+
+type BridgeAsset = Tables<"bridge_assets">;
 
 const formatBalance = (value: string) => {
   const asNumber = Number.parseFloat(value);
@@ -38,13 +41,37 @@ const truncateAddress = (address: string) => {
 export const BridgedAssetsDialog = ({
   open,
   onOpenChange,
-  assets,
-  isLoading,
 }: BridgedAssetsDialogProps) => {
-  const sortedAssets = [...assets].sort((a, b) =>
-    a.token_name.localeCompare(b.token_name)
+  const query = useQuery({
+    queryKey: ["bridge-assets"],
+    enabled: open,
+    refetchInterval: open ? 60_000 : false,
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
+    retry: 1,
+    queryFn: async () => {
+      const { data, error: fetchError } = await supabase
+        .from("bridge_assets")
+        .select("*")
+        .order("token_name", { ascending: true });
+
+      if (fetchError) {
+        throw new Error(fetchError.message);
+      }
+
+      return data ?? [];
+    },
+  });
+
+  const assets = query.data ?? [];
+  const sortedAssets = useMemo(
+    () => [...assets].sort((a, b) => a.token_name.localeCompare(b.token_name)),
+    [assets]
   );
   const bridgeAddress = assets.length > 0 ? assets[0].bridge_address : "0x—";
+  const refreshLabel = query.dataUpdatedAt
+    ? new Date(query.dataUpdatedAt).toLocaleTimeString()
+    : null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -57,7 +84,14 @@ export const BridgedAssetsDialog = ({
           <DialogDescription className="space-y-1 text-sm">
             <p>
               Live balances held by the Mezo bridge contract on Ethereum. Data
-              refreshes every indexer cycle.
+              refreshes every minute while this dialog is open
+              {refreshLabel ? (
+                <span className="text-foreground">
+                  {" "}
+                  · Updated {refreshLabel}
+                </span>
+              ) : null}
+              .
             </p>
             <p className="font-mono text-xs text-muted-foreground">
               Bridge contract:{" "}
@@ -78,11 +112,17 @@ export const BridgedAssetsDialog = ({
         </DialogHeader>
 
         <div className="flex min-h-0 flex-1 flex-col">
-          {isLoading && assets.length === 0 ? (
+          {query.isLoading && assets.length === 0 ? (
             <div className="space-y-3">
               {Array.from({ length: 3 }).map((_, idx) => (
                 <Skeleton key={idx} className="h-24 w-full rounded-xl" />
               ))}
+            </div>
+          ) : query.error ? (
+            <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
+              {query.error instanceof Error
+                ? query.error.message
+                : "Failed to load bridged assets."}
             </div>
           ) : sortedAssets.length === 0 ? (
             <div className="rounded-xl border border-dashed border-card-border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
