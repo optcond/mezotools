@@ -6,21 +6,14 @@ import {
   TroveFetcher,
   TroveFetcherWrapper,
 } from "@mtools/shared";
-import {
-  BaseError,
-  createPublicClient,
-  formatUnits,
-  http,
-} from "viem";
+import { BaseError, formatUnits, type PublicClient } from "viem";
 import {
   RedemptionHints,
   RedemptionMaker,
   RedemptionResult,
   RedemptionSimulation,
 } from "@mtools/shared";
-import { useAccount, useWalletClient } from "wagmi";
-
-const httpTransport = http(MezoChain.rpcUrls.default.http[0]);
+import { useAccount, useChainId, usePublicClient, useWalletClient } from "wagmi";
 const MIN_TCR = 1_100_000_000_000_000_000n; // 110%
 
 const sanitizeIterations = (value: string, fallback = 50) => {
@@ -60,6 +53,11 @@ const App = () => {
   const [recoveryMode, setRecoveryMode] = useState<boolean | null>(null);
   const { address, connector } = useAccount();
   const { data: walletClient } = useWalletClient();
+  const chainId = useChainId();
+  const activeChainId = chainId ?? MezoChain.id;
+  const publicClient = usePublicClient({
+    chainId: activeChainId,
+  }) as PublicClient | undefined;
 
   const markParamsDirty = (
     nextStatus = "Parameters changed — re-run simulation."
@@ -71,20 +69,18 @@ const App = () => {
     setError(null);
   };
 
-  const publicClient = useMemo(
-    () =>
-      createPublicClient({
-        chain: MezoChain,
-        transport: httpTransport,
-      }),
-    []
-  );
-
   useEffect(() => {
+    if (!publicClient) {
+      return;
+    }
     let cancelled = false;
     const bootstrap = async () => {
       setInitializing(true);
       try {
+        setFetcher(null);
+        setHints(null);
+        setSimulation(null);
+        setTxResult(null);
         const troveFetcher = new TroveFetcher(publicClient);
         const priceFeedAddress = await troveFetcher.getPriceFeedAddress();
         if (cancelled) return;
@@ -132,7 +128,7 @@ const App = () => {
 
 
   const maker = useMemo(() => {
-    if (!fetcher) {
+    if (!fetcher || !publicClient) {
       return null;
     }
     return new RedemptionMaker(

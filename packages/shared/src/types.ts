@@ -24,7 +24,7 @@ export const MezoChainTestnet = {
     },
   },
   id: 31611,
-  name: "Mezo",
+  name: "Mezo Testnet",
   nativeCurrency: { name: "Bitcoin", symbol: "BTC", decimals: 18 },
   rpcUrls: {
     default: {
