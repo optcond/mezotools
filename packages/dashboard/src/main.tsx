@@ -9,16 +9,17 @@ import {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WagmiProvider, createConfig, http } from "wagmi";
 import { injected } from "wagmi/connectors";
-import { MezoChain } from "@mtools/shared";
+import { MezoChain, MezoChainTestnet } from "@mtools/shared";
 import App from "./App.tsx";
 import "./index.css";
 
 const queryClient = new QueryClient();
 const wagmiConfig = createConfig({
-  chains: [MezoChain],
+  chains: [MezoChain, MezoChainTestnet],
   connectors: [injected()],
   transports: {
     [MezoChain.id]: http(MezoChain.rpcUrls.default.http[0]),
+    [MezoChainTestnet.id]: http(MezoChainTestnet.rpcUrls.default.http[0]),
   },
 });
 

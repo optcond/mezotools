@@ -96,6 +96,10 @@ export const EthTokens: Record<string, { address: string; decimals: number }> =
     },
   };
 
+/*
+ * Deprecated, will be refactored
+ * Switching to MezoContractsByChainId
+ */
 export const AppContracts: Record<string, `0x${string}`> = {
   ETH_MEZO_TBTC_BRIDGE: "0xf6680ea3b480ca2b72d96ea13ccaf2cfd8e6908c",
   MEZO_TROVE_MANAGER: "0x94AfB503dBca74aC3E4929BACEeDfCe19B93c193",
@@ -112,6 +116,47 @@ export const AppContracts: Record<string, `0x${string}`> = {
   MEZO_BRIBE_VOTING_REWARD: "0x94A9A494872BF7231D8378d0Aef7d32BA552E305",
   MEZO_VE: "0x3D4b1b884A7a1E59fE8589a3296EC8f8cBB6f279",
 };
+
+export type MezoProtocolContracts = {
+  troveManager: `0x${string}`;
+  borrowerOperations: `0x${string}`;
+  hintHelpers: `0x${string}`;
+  sortedTroves: `0x${string}`;
+  poolFactory: `0x${string}`;
+  voter: `0x${string}`;
+  bribeVotingReward: `0x${string}`;
+  ve: `0x${string}`;
+};
+
+export const MezoContractsByChainId: Record<number, MezoProtocolContracts> = {
+  [MezoChain.id]: {
+    troveManager: `0x94AfB503dBca74aC3E4929BACEeDfCe19B93c193`,
+    borrowerOperations: `0x44b1bac67dDA612a41a58AAf779143B181dEe031`,
+    hintHelpers: `0xD267b3bE2514375A075fd03C3D9CBa6b95317DC3`,
+    sortedTroves: `0x8C5DB4C62BF29c1C4564390d10c20a47E0b2749f`,
+    poolFactory: `0x83FE469C636C4081b87bA5b3Ae9991c6Ed104248`,
+    voter: `0x48233cCC97B87Ba93bCA212cbEe48e3210211f03`,
+    bribeVotingReward: `0x94A9A494872BF7231D8378d0Aef7d32BA552E305`,
+    ve: `0x3D4b1b884A7a1E59fE8589a3296EC8f8cBB6f279`,
+  },
+  [MezoChainTestnet.id]: {
+    troveManager: `0xE47c80e8c23f6B4A1aE41c34837a0599D5D16bb0`,
+    borrowerOperations: `0xCdF7028ceAB81fA0C6971208e83fa7872994beE5`,
+    hintHelpers: `0x4e4cBA3779d56386ED43631b4dCD6d8EacEcBCF6`,
+    sortedTroves: `0x722E4D24FD6Ff8b0AC679450F3D91294607268fA`,
+    poolFactory: `0x0`,
+    voter: `0x0`,
+    bribeVotingReward: `0x0`,
+    ve: `0x0`,
+  },
+};
+
+export const getMezoContracts = (chainId?: number) =>
+  MezoContractsByChainId[chainId ?? MezoChain.id] ??
+  MezoContractsByChainId[MezoChain.id];
+
+export const getMezoChain = (chainId?: number) =>
+  chainId === MezoChainTestnet.id ? MezoChainTestnet : MezoChain;
 
 export interface BridgeTokenDefinition {
   tokenSymbol: string;

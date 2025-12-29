@@ -1,31 +1,33 @@
 import {
   Abi,
-  formatUnits,
   PublicClient,
   ContractEventName,
-  parseUnits,
   GetContractEventsReturnType,
   decodeEventLog,
 } from "viem";
-import { AppContracts } from "../types";
+import { getMezoContracts } from "../types";
 import { TroveManagerAbi } from "../abi/TroveManager";
-import {
-  Status,
-  TroveData,
-  TroveLiquidationEvent,
-  TroveRedemptionEvent,
-} from "../trove.types";
+import { Status, TroveData } from "../trove.types";
 import { BorrowerOperationsAbi } from "../abi/BorrowerOperations";
 
 const DEFAULT_CHUNK_SIZE = 10_000n;
 
 export class TroveFetcher {
   private readonly abi = TroveManagerAbi;
+  private readonly contractAddress: `0x${string}`;
+  private readonly borrowerOperationsCA: `0x${string}`;
+
   constructor(
     private readonly client: PublicClient,
-    private readonly contractAddress = AppContracts.MEZO_TROVE_MANAGER as `0x${string}`,
-    private readonly borrowerOperationsCA = AppContracts.MEZO_BORROWER_OPERATIONS as `0x${string}`
-  ) {}
+    contractAddress?: `0x${string}`,
+    borrowerOperationsCA?: `0x${string}`
+  ) {
+    const contracts = getMezoContracts(this.client.chain?.id);
+    this.contractAddress =
+      contractAddress ?? (contracts.troveManager as `0x${string}`);
+    this.borrowerOperationsCA =
+      borrowerOperationsCA ?? (contracts.borrowerOperations as `0x${string}`);
+  }
 
   async getPriceFeedAddress() {
     return await this.client.readContract({

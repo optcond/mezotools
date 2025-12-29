@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useBalance } from "wagmi";
+import { useBalance, useChainId } from "wagmi";
 import { Activity, ShieldAlert, Wallet, ExternalLink } from "lucide-react";
 
 import { WalletConnectButton } from "@/components/WalletConnectButton";
@@ -55,12 +55,14 @@ export const PersonalWalletStats = ({
 }: PersonalWalletStatsProps) => {
   const { account } = wallet;
   const normalizedAccount = account?.toLowerCase() ?? null;
+  const chainId = useChainId();
+  const activeChainId = chainId ?? MezoChain.id;
   const {
     data: btcBalance,
     isFetching: isBtcBalanceFetching,
   } = useBalance({
     address: account ? (account as `0x${string}`) : undefined,
-    chainId: MezoChain.id,
+    chainId: activeChainId,
     query: {
       enabled: Boolean(account),
       refetchInterval: account ? 30_000 : false,
@@ -71,7 +73,7 @@ export const PersonalWalletStats = ({
     isFetching: isMusdBalanceFetching,
   } = useBalance({
     address: account ? (account as `0x${string}`) : undefined,
-    chainId: MezoChain.id,
+    chainId: activeChainId,
     token: MezoTokens.MUSD.address as `0x${string}`,
     query: {
       enabled: Boolean(account),

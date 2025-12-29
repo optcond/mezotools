@@ -1,7 +1,4 @@
-import {
-  AppContracts,
-  MezoTokens,
-} from "../types";
+import { getMezoContracts, MezoProtocolContracts, MezoTokens } from "../types";
 import { TroveFetcherWrapper } from "./troveFetcherWrapper";
 import { HintHelpersAbi } from "../abi/HinteHelpers";
 import { SortedTrovesAbi } from "../abi/SortedTroves";
@@ -33,12 +30,15 @@ export type RedemptionResult = RedemptionSimulation & {
 
 export class RedemptionMaker {
   private readonly musdAddress = MezoTokens.MUSD.address as `0x${string}`;
+  private readonly contracts: MezoProtocolContracts;
 
   constructor(
     private client: PublicClient,
     private fetcher: TroveFetcherWrapper,
     private walletClient?: WalletClient
-  ) {}
+  ) {
+    this.contracts = getMezoContracts(this.client.chain?.id);
+  }
 
   setWalletClient(walletClient?: WalletClient) {
     this.walletClient = walletClient;
@@ -55,7 +55,7 @@ export class RedemptionMaker {
     const [firstRedemptionHint, partialRedemptionHintNICR, truncatedAmount] =
       await this.client.readContract({
         abi: HintHelpersAbi,
-        address: AppContracts.MEZO_HINT_HELPERS,
+        address: this.contracts.hintHelpers,
         functionName: `getRedemptionHints`,
         args: [musdAmount, price, maxIterations],
       });
@@ -75,14 +75,14 @@ export class RedemptionMaker {
 
     const [approxHint] = await this.client.readContract({
       abi: HintHelpersAbi,
-      address: AppContracts.MEZO_HINT_HELPERS,
+      address: this.contracts.hintHelpers,
       functionName: `getApproxHint`,
       args: [partialRedemptionHintNICR, numTrials, randomSeed],
     });
 
     const [upperHint, lowerHint] = await this.client.readContract({
       abi: SortedTrovesAbi,
-      address: AppContracts.MEZO_SORTED_TROVES,
+      address: this.contracts.sortedTroves,
       functionName: "findInsertPosition",
       args: [partialRedemptionHintNICR, approxHint, approxHint],
     });
@@ -111,7 +111,7 @@ export class RedemptionMaker {
 
     const gasEstimate = await this.client.estimateGas({
       account: sender,
-      to: AppContracts.MEZO_TROVE_MANAGER,
+      to: this.contracts.troveManager,
       data: encodeFunctionData({
         abi: TroveManagerAbi,
         functionName: "redeemCollateral",
@@ -175,7 +175,7 @@ export class RedemptionMaker {
 
     const txHash = await this.walletClient.writeContract({
       account: this.walletClient.account,
-      address: AppContracts.MEZO_TROVE_MANAGER,
+      address: this.contracts.troveManager,
       abi: TroveManagerAbi,
       functionName: "redeemCollateral",
       chain: this.walletClient.chain,
@@ -204,7 +204,7 @@ export class RedemptionMaker {
       address: this.musdAddress,
       abi: erc20Abi,
       functionName: "allowance",
-      args: [owner, AppContracts.MEZO_TROVE_MANAGER],
+      args: [owner, this.contracts.troveManager],
     });
 
     if (allowance >= requiredAmount) {
@@ -216,7 +216,7 @@ export class RedemptionMaker {
       address: this.musdAddress,
       abi: erc20Abi,
       functionName: "approve",
-      args: [AppContracts.MEZO_TROVE_MANAGER, requiredAmount],
+      args: [this.contracts.troveManager, requiredAmount],
       chain: this.walletClient.chain,
     });
   }

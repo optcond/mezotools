@@ -24,17 +24,10 @@ import {
   TroveFetcher,
   TroveFetcherWrapper,
 } from "@mtools/shared";
-import {
-  BaseError,
-  createPublicClient,
-  formatUnits,
-  http,
-  PublicClient,
-} from "viem";
+import { BaseError, formatUnits, PublicClient } from "viem";
 import type { WalletControls } from "@/hooks/useWallet";
-import { useBalance } from "wagmi";
+import { useBalance, useChainId, usePublicClient } from "wagmi";
 
-const httpTransport = http(MezoChain.rpcUrls.default.http[0]);
 const MIN_TCR = 1_100_000_000_000_000_000n;
 
 const sanitizeIterations = (value: string, fallback = 50) => {
@@ -155,13 +148,18 @@ export const RedemptionDialog = ({
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [tcrValue, setTcrValue] = useState<bigint | null>(null);
   const [isRecoveryMode, setIsRecoveryMode] = useState<boolean | null>(null);
+  const chainId = useChainId();
+  const activeChainId = chainId ?? MezoChain.id;
+  const publicClient = usePublicClient({
+    chainId: activeChainId,
+  }) as PublicClient | undefined;
   const {
     data: musdBalance,
     isFetching: isMusdBalanceFetching,
     refetch: refetchMusdBalance,
   } = useBalance({
     address: wallet.account ? (wallet.account as `0x${string}`) : undefined,
-    chainId: MezoChain.id,
+    chainId: activeChainId,
     token: MezoTokens.MUSD.address as `0x${string}`,
     query: {
       enabled: open && Boolean(wallet.account),
@@ -169,20 +167,18 @@ export const RedemptionDialog = ({
     },
   });
 
-  const publicClient = useMemo(
-    () =>
-      createPublicClient({
-        chain: MezoChain,
-        transport: httpTransport,
-      }),
-    []
-  );
-
   useEffect(() => {
+    if (!publicClient) {
+      return;
+    }
     let cancelled = false;
     const bootstrap = async () => {
       setIsBootstrapping(true);
       setBootstrapError(null);
+      setFetcher(null);
+      setHints(null);
+      setSimulation(null);
+      setTxResult(null);
       try {
         const troveFetcher = new TroveFetcher(publicClient as PublicClient);
         const priceFeedAddress = await troveFetcher.getPriceFeedAddress();
