@@ -46,12 +46,20 @@ const sanitizeErrorMessage = (message?: string | null) => {
   if (message.includes("TroveManager: Unable to redeem any amount")) {
     return "Unable to redeem any amount with the current hints. Run a fresh simulation and try again.";
   }
+  if (
+    message.includes(
+      "TroveManager: Requested redemption amount must be <= user's mUSD token balance."
+    )
+  ) {
+    return "Your MUSD balance is insufficient to simulate or execute this redemption. Reduce the amount and try again.";
+  }
   const markers = [
     "Request Arguments:",
     "Contract Call:",
     "Docs:",
     "Details:",
     "Version:",
+    "Estimate Gas Arguments:",
   ];
   let trimmed = message;
   for (const marker of markers) {
@@ -66,11 +74,6 @@ const sanitizeErrorMessage = (message?: string | null) => {
 
 const formatReadableError = (err: unknown, fallback: string) => {
   if (err instanceof BaseError) {
-    if (
-      err.shortMessage ===
-      `Execution reverted with reason: rpc error: code = Unknown desc = TroveManager: Requested redemption amount must be <= user's mUSD token balance.`
-    )
-      return `Your MUSD balance is insufficient to simulate redemption. Requested redemption amount must be <= MUSD token balance.`;
     const short = sanitizeErrorMessage(err.shortMessage);
     if (short) {
       return short;
