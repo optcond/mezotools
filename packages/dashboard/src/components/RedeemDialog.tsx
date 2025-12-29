@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, ShieldAlert, ArrowRightLeft, Sparkles } from "lucide-react";
 import { WalletConnectButton } from "@/components/WalletConnectButton";
 import {
+  getMezoContracts,
   MezoChain,
   MezoTokens,
   PriceFeedFetcher,
@@ -153,6 +154,12 @@ export const RedemptionDialog = ({
   const [isRecoveryMode, setIsRecoveryMode] = useState<boolean | null>(null);
   const chainId = useChainId();
   const activeChainId = chainId ?? MezoChain.id;
+  const contracts = useMemo(
+    () => getMezoContracts(activeChainId),
+    [activeChainId]
+  );
+  const musdTokenAddress =
+    contracts.tokens?.MUSD.address ?? MezoTokens.MUSD.address;
   const publicClient = usePublicClient({
     chainId: activeChainId,
   }) as PublicClient | undefined;
@@ -163,7 +170,7 @@ export const RedemptionDialog = ({
   } = useBalance({
     address: wallet.account ? (wallet.account as `0x${string}`) : undefined,
     chainId: activeChainId,
-    token: MezoTokens.MUSD.address as `0x${string}`,
+    token: musdTokenAddress as `0x${string}`,
     query: {
       enabled: open && Boolean(wallet.account),
       refetchInterval: open ? 30_000 : false,

@@ -29,7 +29,7 @@ export type RedemptionResult = RedemptionSimulation & {
 };
 
 export class RedemptionMaker {
-  private readonly musdAddress = MezoTokens.MUSD.address as `0x${string}`;
+  private readonly musdAddress: `0x${string}`;
   private readonly contracts: MezoProtocolContracts;
 
   constructor(
@@ -38,6 +38,7 @@ export class RedemptionMaker {
     private walletClient?: WalletClient
   ) {
     this.contracts = getMezoContracts(this.client.chain?.id);
+    this.musdAddress = this.contracts.tokens?.MUSD.address as `0x${string}`;
   }
 
   setWalletClient(walletClient?: WalletClient) {

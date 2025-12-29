@@ -126,6 +126,7 @@ export type MezoProtocolContracts = {
   voter: `0x${string}`;
   bribeVotingReward: `0x${string}`;
   ve: `0x${string}`;
+  tokens?: Record<string, { address: string; decimals: number }>;
 };
 
 export const MezoContractsByChainId: Record<number, MezoProtocolContracts> = {
@@ -138,6 +139,7 @@ export const MezoContractsByChainId: Record<number, MezoProtocolContracts> = {
     voter: `0x48233cCC97B87Ba93bCA212cbEe48e3210211f03`,
     bribeVotingReward: `0x94A9A494872BF7231D8378d0Aef7d32BA552E305`,
     ve: `0x3D4b1b884A7a1E59fE8589a3296EC8f8cBB6f279`,
+    tokens: MezoTokens,
   },
   [MezoChainTestnet.id]: {
     troveManager: `0xE47c80e8c23f6B4A1aE41c34837a0599D5D16bb0`,
@@ -148,6 +150,16 @@ export const MezoContractsByChainId: Record<number, MezoProtocolContracts> = {
     voter: `0x0`,
     bribeVotingReward: `0x0`,
     ve: `0x0`,
+    tokens: {
+      MUSD: {
+        address: `0x118917a40FAF1CD7a13dB0Ef56C86De7973Ac503`,
+        decimals: 18,
+      },
+      BTC: {
+        address: "0x7b7C000000000000000000000000000000000000",
+        decimals: 18,
+      },
+    },
   },
 };
 

@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { MezoChain, MezoTokens } from "@mtools/shared";
+import { getMezoContracts, MezoChain, MezoTokens } from "@mtools/shared";
 import type { Trove, Liquidation, Redemption } from "@/hooks/useMonitorData";
 import type { WalletControls } from "@/hooks/useWallet";
 import { formatNumber } from "@/lib/formatNumber";
@@ -57,6 +57,12 @@ export const PersonalWalletStats = ({
   const normalizedAccount = account?.toLowerCase() ?? null;
   const chainId = useChainId();
   const activeChainId = chainId ?? MezoChain.id;
+  const contracts = useMemo(
+    () => getMezoContracts(activeChainId),
+    [activeChainId]
+  );
+  const musdTokenAddress =
+    contracts.tokens?.MUSD.address ?? MezoTokens.MUSD.address;
   const {
     data: btcBalance,
     isFetching: isBtcBalanceFetching,
@@ -74,7 +80,7 @@ export const PersonalWalletStats = ({
   } = useBalance({
     address: account ? (account as `0x${string}`) : undefined,
     chainId: activeChainId,
-    token: MezoTokens.MUSD.address as `0x${string}`,
+    token: musdTokenAddress as `0x${string}`,
     query: {
       enabled: Boolean(account),
       refetchInterval: account ? 30_000 : false,
