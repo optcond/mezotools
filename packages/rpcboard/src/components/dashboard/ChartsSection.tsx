@@ -58,7 +58,10 @@ export const ChartsSection = () => {
   const processedTroves = useMemo<ProcessedTrove[]>(() => {
     return Array.from(troves.values()).map((trove) => {
       const debt = trove.principalDebt + trove.interest;
-      const cr = (trove.collateralBtc * currentBtcPrice) / debt;
+      const cr =
+        typeof trove.icr === "number" && Number.isFinite(trove.icr)
+          ? trove.icr
+          : (trove.collateralBtc * currentBtcPrice) / debt;
       return { ...trove, debt, cr };
     });
   }, [troves, currentBtcPrice]);

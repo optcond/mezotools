@@ -126,7 +126,10 @@ interface DashboardState {
 
 const calculateTroveData = (trove: Trove, btcPrice: number) => {
   const debt = trove.principalDebt + trove.interest;
-  const cr = (trove.collateralBtc * btcPrice) / debt;
+  const cr =
+    typeof trove.icr === "number" && Number.isFinite(trove.icr)
+      ? trove.icr
+      : (trove.collateralBtc * btcPrice) / debt;
   return { ...trove, debt, cr };
 };
 

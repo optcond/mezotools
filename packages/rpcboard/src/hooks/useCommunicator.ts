@@ -28,6 +28,7 @@ const formatTroves = (
     collateralBtc: trove.collateral,
     principalDebt: trove.principal_debt,
     interest: trove.interest,
+    icr: trove.collaterizationRatio,
   }));
 
 export const useCommunicator = () => {

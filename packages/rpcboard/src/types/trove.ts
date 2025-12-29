@@ -3,6 +3,7 @@ export interface Trove {
   collateralBtc: number;
   principalDebt: number;
   interest: number;
+  icr?: number; // On-chain ICR (1e18 precision, normalized to number)
   cr?: number; // Calculated client-side
   debt?: number; // Calculated client-side
 }
