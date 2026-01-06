@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Dialog,
@@ -9,6 +9,8 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -18,7 +20,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Vote } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Sparkles, Vote } from "lucide-react";
 import type { GaugeIncentive } from "@mtools/shared";
 import { MezoTokens } from "@mtools/shared";
 import { formatUnits } from "viem";
@@ -39,6 +42,16 @@ const formatDecimalString = (value?: string | null, fractionDigits = 4) => {
 const formatVeBtc = (value?: bigint | null, fractionDigits = 4) => {
   if (value === null || value === undefined) return "—";
   return formatDecimalString(formatUnits(value, 18), fractionDigits);
+};
+
+const formatUsd = (value?: number | null) => {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return "—";
+  }
+  return value.toLocaleString(undefined, {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 2,
+  });
 };
 
 const truncateAddress = (address: string) => {
@@ -63,6 +76,9 @@ export const BribesDialog = ({
   onOpenChange,
   btcPrice,
 }: BribesDialogProps) => {
+  const [calculatorInput, setCalculatorInput] = useState("");
+  const [calculatorVotes, setCalculatorVotes] = useState<number | null>(null);
+
   const toBigInt = (value: string | number | null | undefined) => {
     if (value === null || value === undefined) return 0n;
     if (typeof value === "number") return BigInt(Math.trunc(value));
@@ -79,17 +95,15 @@ export const BribesDialog = ({
     for (const item of bribes) {
       if (!item || typeof item !== "object") continue;
       const token =
-        "token" in item && typeof item.token === "string"
-          ? item.token
-          : null;
+        "token" in item && typeof item.token === "string" ? item.token : null;
       const amountValue =
         "amount" in item ? (item as { amount?: unknown }).amount : null;
       const amount =
         typeof amountValue === "string"
           ? amountValue
           : typeof amountValue === "number"
-            ? Math.trunc(amountValue).toString()
-            : null;
+          ? Math.trunc(amountValue).toString()
+          : null;
       if (!token || amount === null) continue;
       rewards.push({
         token: token as `0x${string}`,
@@ -145,9 +159,7 @@ export const BribesDialog = ({
         voteEnd: toBigInt(gaugeState.vote_end),
       }
     : null;
-  const totalVeSupply = gaugeState
-    ? toBigInt(gaugeState.ve_supply_live)
-    : null;
+  const totalVeSupply = gaugeState ? toBigInt(gaugeState.ve_supply_live) : null;
   const totalVotingPower = gaugeState
     ? toBigInt(gaugeState.total_votes_snapshot)
     : null;
@@ -196,7 +208,11 @@ export const BribesDialog = ({
           if (tokenAddress === MezoTokens.BTC.address.toLowerCase()) {
             return acc + toNumber(reward.amount, 18) * btcPrice;
           }
-          if (tokenAddress === MezoTokens.MUSD.address.toLowerCase()) {
+          if (
+            tokenAddress === MezoTokens.MUSD.address.toLowerCase() ||
+            tokenAddress === MezoTokens.mUSDT.address.toLowerCase() ||
+            tokenAddress === MezoTokens.mUSDC.address.toLowerCase()
+          ) {
             return acc + toNumber(reward.amount, 18);
           }
           return acc;
@@ -209,6 +225,9 @@ export const BribesDialog = ({
         return {
           ...gauge,
           totalBribes,
+          votesBtc,
+          bribeValueUsd,
+          annualBribeUsd,
           aprPercent,
         };
       })
@@ -248,6 +267,107 @@ export const BribesDialog = ({
     ? new Date(query.dataUpdatedAt).toLocaleTimeString()
     : null;
 
+  const parseVoteInput = (value: string) => {
+    const trimmed = value.trim();
+    const normalized = trimmed.includes(".")
+      ? trimmed.replace(/,/g, "")
+      : trimmed.replace(",", ".");
+    if (!normalized) return null;
+    const parsed = Number.parseFloat(normalized);
+    if (!Number.isFinite(parsed) || parsed <= 0) return null;
+    return parsed;
+  };
+
+  const calculatorAllocations = useMemo(() => {
+    if (!calculatorVotes || calculatorVotes <= 0 || btcPrice <= 0) {
+      return new Map<
+        string,
+        { allocation: number; proportion: number; newAprPercent: number | null }
+      >();
+    }
+
+    const candidates = gaugesWithTotals.filter(
+      (gauge) => gauge.annualBribeUsd > 0 && gauge.votesBtc >= 0
+    );
+    if (candidates.length === 0) {
+      return new Map<
+        string,
+        { allocation: number; proportion: number; newAprPercent: number | null }
+      >();
+    }
+
+    const maxDerivative = Math.max(
+      ...candidates.map((gauge) => {
+        const votes = Math.max(gauge.votesBtc, 1e-9);
+        return gauge.annualBribeUsd / votes;
+      })
+    );
+
+    if (!Number.isFinite(maxDerivative) || maxDerivative <= 0) {
+      return new Map<
+        string,
+        { allocation: number; proportion: number; newAprPercent: number | null }
+      >();
+    }
+
+    let low = 0;
+    let high = maxDerivative;
+    for (let i = 0; i < 80; i += 1) {
+      const mid = (low + high) / 2;
+      if (mid <= 0) {
+        high = mid;
+        continue;
+      }
+      const totalAllocated = candidates.reduce((acc, gauge) => {
+        const target =
+          Math.sqrt((gauge.annualBribeUsd * gauge.votesBtc) / mid) -
+          gauge.votesBtc;
+        return acc + Math.max(0, target);
+      }, 0);
+      if (totalAllocated > calculatorVotes) {
+        low = mid;
+      } else {
+        high = mid;
+      }
+    }
+
+    const allocationMap = new Map<
+      string,
+      { allocation: number; proportion: number; newAprPercent: number | null }
+    >();
+    const allocations = candidates.map((gauge) => {
+      const target =
+        Math.sqrt((gauge.annualBribeUsd * gauge.votesBtc) / high) -
+        gauge.votesBtc;
+      const allocation = Math.max(0, target);
+      return { gauge, allocation };
+    });
+
+    allocations.forEach(({ gauge, allocation }) => {
+      const newVotes = gauge.votesBtc + allocation;
+      const newAprPercent =
+        newVotes > 0
+          ? (gauge.annualBribeUsd / (newVotes * btcPrice)) * 100
+          : null;
+      allocationMap.set(gauge.gauge, {
+        allocation,
+        proportion: allocation / calculatorVotes,
+        newAprPercent,
+      });
+    });
+
+    return allocationMap;
+  }, [btcPrice, calculatorVotes, gaugesWithTotals]);
+
+  const handleCalculate = () => {
+    setCalculatorVotes(parseVoteInput(calculatorInput));
+  };
+
+  const handleReset = () => {
+    setCalculatorInput("");
+    setCalculatorVotes(null);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-5xl flex-col gap-4 overflow-hidden sm:w-full sm:max-h-[90vh]">
@@ -258,7 +378,8 @@ export const BribesDialog = ({
           </DialogTitle>
           <DialogDescription className="space-y-2 text-sm">
             <p>
-              Bribes and vote weights refresh every minute while this dialog is open
+              Bribes and vote weights refresh every minute while this dialog is
+              open
               {refreshLabel ? (
                 <span className="text-foreground">
                   {" "}
@@ -281,18 +402,14 @@ export const BribesDialog = ({
                 <div className="text-sm font-semibold text-foreground">
                   {epochEndsIn}
                 </div>
-                <div className="font-medium text-foreground">
-                  Epoch ends in
-                </div>
+                <div className="font-medium text-foreground">Epoch ends in</div>
                 <p>Time remaining until the current epoch ends.</p>
               </div>
               <div className="space-y-1 rounded-lg border border-card-border/60 bg-muted/20 p-3">
                 <div className="text-sm font-semibold text-foreground">
                   {voteClosesAt}
                 </div>
-                <div className="font-medium text-foreground">
-                  Voting closes
-                </div>
+                <div className="font-medium text-foreground">Voting closes</div>
                 <p>Snapshot voting window cutoff time.</p>
               </div>
               <div className="space-y-1 rounded-lg border border-card-border/60 bg-muted/20 p-3">
@@ -327,6 +444,45 @@ export const BribesDialog = ({
         </DialogHeader>
 
         <div className="flex min-h-0 flex-1 flex-col">
+          <div className="mb-4 rounded-xl border border-card-border/60 bg-muted/20 p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div className="space-y-1">
+                <div className="text-sm font-semibold text-foreground">
+                  Gauge bribes calculator
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Enter your veBTC balance to estimate the best vote split and
+                  updated APRs.
+                </p>
+              </div>
+              <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+                <Input
+                  value={calculatorInput}
+                  onChange={(event) => setCalculatorInput(event.target.value)}
+                  placeholder="veBTC amount"
+                  inputMode="decimal"
+                  className="sm:w-48"
+                />
+                <Button onClick={handleCalculate} type="button">
+                  Calculate
+                </Button>
+                <Button onClick={handleReset} type="button" variant="outline">
+                  Reset
+                </Button>
+              </div>
+            </div>
+          </div>
+          <Alert className="mb-4 border border-primary/40 bg-primary/5">
+            <Sparkles className="h-4 w-4" />
+            <AlertDescription>
+              <p>
+                We are using BTC, MUSD, mUSDT and mUSDC for APR calculation only
+                and ignoring other tokens for now. This will be changed in
+                future releases.
+              </p>
+              <p>Stablecoin values are assumed to be $1.</p>
+            </AlertDescription>
+          </Alert>
           {query.isLoading && gauges.length === 0 ? (
             <div className="space-y-3">
               {Array.from({ length: 5 }).map((_, idx) => (
@@ -352,92 +508,176 @@ export const BribesDialog = ({
                     <TableHead>Bribes (epoch)</TableHead>
                     <TableHead>APR</TableHead>
                     <TableHead className="text-right">Votes</TableHead>
+                    <TableHead>Calculator</TableHead>
+                    <TableHead>Bribes received</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {gaugesWithTotals.map((gauge) => (
-                    <TableRow key={gauge.gauge}>
-                      <TableCell>
-                        <div className="space-y-1">
-                          <div className="font-semibold text-foreground">
-                            {gauge.poolName ?? "Unknown pool"}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            Pool{" "}
-                            <a
-                              href={`https://explorer.mezo.org/address/${gauge.pool}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="font-mono text-foreground underline-offset-2 hover:underline"
-                            >
-                              {truncateAddress(gauge.pool)}
-                            </a>{" "}
-                            · Gauge{" "}
-                            <a
-                              href={`https://explorer.mezo.org/address/${gauge.gauge}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="font-mono text-foreground underline-offset-2 hover:underline"
-                            >
-                              {truncateAddress(gauge.gauge)}
-                            </a>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col gap-2">
-                          {gauge.rewards.length === 0 ? (
-                            <span className="text-xs text-muted-foreground">
-                              No active bribes
-                            </span>
-                          ) : (
-                            gauge.rewards.map((reward) => (
-                              <div
-                                key={`${gauge.gauge}-${reward.token}`}
-                                className="flex flex-wrap items-center gap-2 text-xs"
+                  {gaugesWithTotals.map((gauge) => {
+                    const allocation = calculatorAllocations.get(gauge.gauge);
+                    const allocationPercent =
+                      allocation && Number.isFinite(allocation.proportion)
+                        ? allocation.proportion * 100
+                        : null;
+                    const allocationAmount =
+                      allocation && Number.isFinite(allocation.allocation)
+                        ? allocation.allocation
+                        : null;
+                    const newApr =
+                      allocation && Number.isFinite(allocation.newAprPercent)
+                        ? allocation.newAprPercent
+                        : null;
+                    const allocationShare =
+                      allocation &&
+                      Number.isFinite(allocation.allocation) &&
+                      allocation.allocation > 0 &&
+                      gauge.votesBtc + allocation.allocation > 0
+                        ? allocation.allocation /
+                          (gauge.votesBtc + allocation.allocation)
+                        : null;
+                    const bribesReceivedUsd =
+                      allocationShare !== null
+                        ? gauge.bribeValueUsd * allocationShare
+                        : null;
+
+                    return (
+                      <TableRow key={gauge.gauge}>
+                        <TableCell>
+                          <div className="space-y-1">
+                            <div className="font-semibold text-foreground">
+                              {gauge.poolName ?? "Unknown pool"}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              Pool{" "}
+                              <a
+                                href={`https://explorer.mezo.org/address/${gauge.pool}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="font-mono text-foreground underline-offset-2 hover:underline"
                               >
-                                <Badge variant="outline" className="p-0">
-                                  <a
-                                    href={`https://explorer.mezo.org/address/${reward.token}`}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="px-2 py-0.5 underline-offset-2 hover:underline"
+                                {truncateAddress(gauge.pool)}
+                              </a>{" "}
+                              · Gauge{" "}
+                              <a
+                                href={`https://explorer.mezo.org/address/${gauge.gauge}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="font-mono text-foreground underline-offset-2 hover:underline"
+                              >
+                                {truncateAddress(gauge.gauge)}
+                              </a>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-col gap-2">
+                            {gauge.rewards.length === 0 ? (
+                              <span className="text-xs text-muted-foreground">
+                                No active bribes
+                              </span>
+                            ) : (
+                              gauge.rewards.map((reward) => (
+                                <div
+                                  key={`${gauge.gauge}-${reward.token}`}
+                                  className="flex flex-wrap items-center gap-2 text-xs"
+                                >
+                                  <Badge variant="outline" className="p-0">
+                                    <a
+                                      href={`https://explorer.mezo.org/address/${reward.token}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="px-2 py-0.5 underline-offset-2 hover:underline"
+                                    >
+                                      {tokenSymbolMap.get(
+                                        reward.token.toLowerCase()
+                                      ) ?? truncateAddress(reward.token)}
+                                    </a>
+                                  </Badge>
+                                  <span className="font-mono text-foreground">
+                                    {formatDecimalString(
+                                      formatUnits(reward.amount, 18),
+                                      4
+                                    )}
+                                  </span>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="space-y-1 text-xs">
+                            <div className="font-semibold text-foreground">
+                              {Number.isFinite(gauge.aprPercent)
+                                ? `${gauge.aprPercent.toFixed(2)}%`
+                                : "—"}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="text-sm font-semibold text-foreground">
+                            {formatVeBtc(gauge.votes)}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="space-y-1 text-xs">
+                            <div className="font-semibold text-foreground">
+                              {allocationPercent !== null
+                                ? `${allocationPercent.toFixed(2)}%`
+                                : "—"}
+                            </div>
+                            <div className="text-muted-foreground">
+                              {allocationAmount !== null
+                                ? `${allocationAmount.toFixed(4)} veBTC`
+                                : "Best split"}
+                            </div>
+                            <div className="text-foreground">
+                              {newApr !== null ? `${newApr.toFixed(2)}%` : "—"}
+                            </div>
+                            <div className="text-muted-foreground">new APR</div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="space-y-1 text-xs">
+                            <div className="font-semibold text-foreground">
+                              {bribesReceivedUsd !== null
+                                ? `~$${formatUsd(bribesReceivedUsd)}`
+                                : "—"}
+                            </div>
+                            {allocationShare !== null &&
+                            gauge.rewards.length > 0 ? (
+                              <div className="space-y-1">
+                                {gauge.rewards.map((reward) => (
+                                  <div
+                                    key={`${gauge.gauge}-received-${reward.token}`}
+                                    className="flex flex-wrap items-center gap-2"
                                   >
-                                    {tokenSymbolMap.get(
-                                      reward.token.toLowerCase()
-                                    ) ?? truncateAddress(reward.token)}
-                                  </a>
-                                </Badge>
-                                <span className="font-mono text-foreground">
-                                  {formatDecimalString(
-                                    formatUnits(reward.amount, 18),
-                                    4
-                                  )}
-                                </span>
+                                    <span className="font-mono text-foreground">
+                                      {formatDecimalString(
+                                        (
+                                          Number.parseFloat(
+                                            formatUnits(reward.amount, 18)
+                                          ) * allocationShare
+                                        ).toString(),
+                                        reward.token.toLowerCase() ===
+                                          MezoTokens.BTC.address.toLowerCase()
+                                          ? 6
+                                          : 4
+                                      )}
+                                    </span>
+                                    <span className="text-muted-foreground">
+                                      {tokenSymbolMap.get(
+                                        reward.token.toLowerCase()
+                                      ) ?? truncateAddress(reward.token)}
+                                    </span>
+                                  </div>
+                                ))}
                               </div>
-                            ))
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="space-y-1 text-xs">
-                          <div className="font-semibold text-foreground">
-                            {Number.isFinite(gauge.aprPercent)
-                              ? `${gauge.aprPercent.toFixed(2)}%`
-                              : "—"}
+                            ) : null}
                           </div>
-                          <div className="text-muted-foreground">
-                            annualized vs BTC value
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="text-sm font-semibold text-foreground">
-                          {formatVeBtc(gauge.votes)}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </ScrollArea>
