@@ -16,7 +16,7 @@ import { RedemptionSheet } from "@/components/RedemptionSheet";
 import { BribesSheet } from "@/components/BribesSheet";
 // import { SwapDialog } from "@/components/SwapDialog";
 import { AllTrovesPreview } from "@/components/AllTrovesPreview";
-import { AllTroves } from "@/components/AllTroves";
+import { AllTrovesSheet } from "@/components/AllTrovesSheet";
 import { useMonitorData } from "@/hooks/useMonitorData";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -146,7 +146,6 @@ const Dashboard = () => {
   } = useMonitorData();
   const wallet = useWallet();
   const [isCustomizeOpen, setIsCustomizeOpen] = useState(false);
-  const [isTrovesSheetOpen, setIsTrovesSheetOpen] = useState(false);
   const [draggingWidget, setDraggingWidget] =
     useState<DashboardWidgetKey | null>(null);
   const [widgetVisibility, setWidgetVisibility] = useState<
@@ -194,7 +193,8 @@ const Dashboard = () => {
     sheetParam === "bridged-assets" ||
     sheetParam === "debt-calculator" ||
     sheetParam === "redemption" ||
-    sheetParam === "bribes"
+    sheetParam === "bribes" ||
+    sheetParam === "all-troves"
       ? sheetParam
       : null;
 
@@ -422,7 +422,7 @@ const Dashboard = () => {
     "troves-summary": (
       <AllTrovesPreview
         troves={troves}
-        onOpenFullTable={() => setIsTrovesSheetOpen(true)}
+        onOpenFullTable={() => setSheetParam("all-troves")}
       />
     ),
   };
@@ -439,7 +439,7 @@ const Dashboard = () => {
         onDebtCalculatorClick={() => setSheetParam("debt-calculator")}
         onRedeemClick={() => setSheetParam("redemption")}
         onBribesClick={() => setSheetParam("bribes")}
-        onTrovesClick={() => setIsTrovesSheetOpen(true)}
+        onTrovesClick={() => setSheetParam("all-troves")}
         onCustomizeClick={() => setIsCustomizeOpen(true)}
         // onSwapClick={() => setIsSwapDialogOpen(true)}
       />
@@ -499,29 +499,12 @@ const Dashboard = () => {
         onOpenChange={handleSheetOpenChange("bribes")}
         btcPrice={systemMetrics.btcPrice}
       />
-      <Sheet open={isTrovesSheetOpen} onOpenChange={setIsTrovesSheetOpen}>
-        <SheetContent
-          side="right"
-          className="flex h-full w-full flex-col gap-6 overflow-y-auto sm:max-w-5xl"
-          enableSwipeClose
-          onSwipeClose={() => setIsTrovesSheetOpen(false)}
-        >
-          <SheetHeader>
-            <SheetTitle>All Troves</SheetTitle>
-            <SheetDescription>
-              Full trove list with filters, search, and CSV export.
-            </SheetDescription>
-          </SheetHeader>
-          <AllTroves
-            troves={troves}
-            isLoading={isLoading}
-            stickyControls
-            variant="sheet"
-            showTitle={false}
-            stickyOffsetClass="sm:top-4"
-          />
-        </SheetContent>
-      </Sheet>
+      <AllTrovesSheet
+        open={activeSheet === "all-troves"}
+        onOpenChange={handleSheetOpenChange("all-troves")}
+        troves={troves}
+        isLoading={isLoading}
+      />
       <Sheet open={isCustomizeOpen} onOpenChange={setIsCustomizeOpen}>
         <SheetContent
           side="right"

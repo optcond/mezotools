@@ -25,7 +25,7 @@ interface Trove {
   collaterization_ratio: number;
 }
 
-interface AllTrovesProps {
+interface AllTrovesTableProps {
   troves: Trove[];
   isLoading: boolean;
   stickyControls?: boolean;
@@ -53,14 +53,14 @@ const truncateAddress = (address: string) => {
   return `${address.slice(0, 8)}...${address.slice(-6)}`;
 };
 
-export const AllTroves = ({
+export const AllTrovesTable = ({
   troves,
   isLoading,
   stickyControls = false,
   variant = "card",
   showTitle = true,
   stickyOffsetClass = "sm:top-20",
-}: AllTrovesProps) => {
+}: AllTrovesTableProps) => {
   const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [preset, setPreset] = useState<PresetFilter>("all");
