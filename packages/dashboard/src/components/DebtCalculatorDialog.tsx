@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
@@ -328,20 +328,23 @@ export const DebtCalculatorDialog = ({
   );
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-3xl overflow-y-auto sm:h-auto sm:w-full sm:max-h-[90vh]">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="right"
+        className="h-full w-full overflow-y-auto sm:max-w-3xl"
+      >
+        <SheetHeader>
+          <SheetTitle className="flex items-center gap-2">
             <Calculator className="h-5 w-5 text-primary" />
             Debt calculator
-          </DialogTitle>
-          <DialogDescription className="space-y-1 text-sm">
+          </SheetTitle>
+          <SheetDescription className="space-y-1 text-sm">
             <p>
               Evaluate how changes to your position impact liquidation risk.
               Calculations use the Liquity minimum collateral ratio of 110%.
             </p>
-          </DialogDescription>
-        </DialogHeader>
+          </SheetDescription>
+        </SheetHeader>
 
         <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
           <div className="space-y-4">
@@ -611,7 +614,7 @@ export const DebtCalculatorDialog = ({
             </div>
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 };

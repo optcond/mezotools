@@ -1,12 +1,12 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -388,14 +388,17 @@ export const BribesDialog = ({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-5xl flex-col gap-4 overflow-y-auto sm:h-auto sm:w-full sm:max-h-[90vh]">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="right"
+        className="flex h-full w-full flex-col gap-4 overflow-y-auto sm:max-w-5xl"
+      >
+        <SheetHeader>
+          <SheetTitle className="flex items-center gap-2">
             <Vote className="h-5 w-5 text-primary" />
             Gauge bribes
-          </DialogTitle>
-          <DialogDescription className="space-y-2 text-sm">
+          </SheetTitle>
+          <SheetDescription className="space-y-2 text-sm">
             <p>
               Bribes and vote weights refresh every minute while this dialog is
               open
@@ -459,8 +462,8 @@ export const BribesDialog = ({
                 <p>Voting power at the start of the current epoch.</p>
               </div>
             </div>
-          </DialogDescription>
-        </DialogHeader>
+          </SheetDescription>
+        </SheetHeader>
 
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="mb-4 rounded-xl border border-card-border/60 bg-muted/20 p-4">
@@ -946,7 +949,7 @@ export const BribesDialog = ({
             </div>
           )}
         </div>
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 };

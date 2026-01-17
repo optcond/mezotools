@@ -5,10 +5,16 @@ import {
   ShieldQuestion,
   ShieldCheck,
   PieChart as PieChartIcon,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { PieChart, Pie, Cell, Legend, ResponsiveContainer, Tooltip } from "recharts";
+
+const RISK_CHART_STORAGE_KEY = "mezo-chart-collapse-risk-analysis";
 
 interface RiskBucket {
   count: number;
@@ -52,6 +58,28 @@ const RiskTile = ({
 );
 
 export const RiskAnalysis = ({ critical, high, elevated, safe, isLoading }: RiskAnalysisProps) => {
+  const [isChartCollapsed, setIsChartCollapsed] = useState(() => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+    try {
+      return window.localStorage.getItem(RISK_CHART_STORAGE_KEY) === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        RISK_CHART_STORAGE_KEY,
+        String(isChartCollapsed)
+      );
+    } catch {
+      // Ignore storage failures (private mode or disabled storage).
+    }
+  }, [isChartCollapsed]);
+
   const pieData = [
     { name: "Critical <1.2", value: critical.count, color: "hsl(var(--critical))" },
     { name: "High 1.2-1.6", value: high.count, color: "hsl(var(--high))" },
@@ -117,43 +145,73 @@ export const RiskAnalysis = ({ critical, high, elevated, safe, isLoading }: Risk
 
       {/* Pie Chart */}
       <div className="bg-card/40 rounded-xl p-4">
-        <h3 className="text-sm font-semibold mb-4 text-muted-foreground flex items-center gap-2">
-          <PieChartIcon className="h-4 w-4" />
-          Risk Distribution
-        </h3>
-        <ResponsiveContainer width="100%" height={240}>
-          <PieChart>
-            <Pie
-              data={pieData}
-              cx="50%"
-              cy="50%"
-              labelLine={false}
-              outerRadius={80}
-              fill="#8884d8"
-              dataKey="value"
-            >
-              {pieData.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.color} />
-              ))}
-            </Pie>
-            <Tooltip
-              contentStyle={{
-                backgroundColor: 'hsl(var(--card))',
-                border: '1px solid hsl(var(--border))',
-                borderRadius: '8px',
-              }}
-            />
-            <Legend 
-              verticalAlign="bottom" 
-              height={36}
-              formatter={(value, entry: any) => {
-                const total = pieData.reduce((sum, item) => sum + item.value, 0);
-                const percentage = ((entry.payload.value / total) * 100).toFixed(1);
-                return `${value}: ${entry.payload.value} (${percentage}%)`;
-              }}
-            />
-          </PieChart>
-        </ResponsiveContainer>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+            <PieChartIcon className="h-4 w-4" />
+            Risk Distribution
+          </h3>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => setIsChartCollapsed((prev) => !prev)}
+          >
+            {isChartCollapsed ? (
+              <ChevronDown className="h-4 w-4" />
+            ) : (
+              <ChevronUp className="h-4 w-4" />
+            )}
+            <span className="sr-only">
+              {isChartCollapsed ? "Show chart" : "Hide chart"}
+            </span>
+          </Button>
+        </div>
+        {isChartCollapsed ? (
+          <div className="text-xs text-muted-foreground">
+            Chart hidden.
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={240}>
+            <PieChart>
+              <Pie
+                data={pieData}
+                cx="50%"
+                cy="50%"
+                labelLine={false}
+                outerRadius={80}
+                fill="#8884d8"
+                dataKey="value"
+              >
+                {pieData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} />
+                ))}
+              </Pie>
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: "hsl(var(--card))",
+                  border: "1px solid hsl(var(--border))",
+                  borderRadius: "8px",
+                }}
+              />
+              <Legend
+                verticalAlign="bottom"
+                height={36}
+                formatter={(value, entry: any) => {
+                  const total = pieData.reduce(
+                    (sum, item) => sum + item.value,
+                    0
+                  );
+                  const percentage = (
+                    (entry.payload.value / total) *
+                    100
+                  ).toFixed(1);
+                  return `${value}: ${entry.payload.value} (${percentage}%)`;
+                }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+        )}
       </div>
 
       {/* Alert Banner */}

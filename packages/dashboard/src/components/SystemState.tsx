@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   Users,
@@ -6,10 +7,15 @@ import {
   Gauge,
   ArrowDownLeft,
   ArrowDownRight,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { formatNumber } from "@/lib/formatNumber";
+
+const TCR_CHART_STORAGE_KEY = "mezo-chart-collapse-system-state";
 
 interface SystemStateProps {
   tcr: number;
@@ -53,6 +59,28 @@ export const SystemState = ({
   chartData,
   isLoading 
 }: SystemStateProps) => {
+  const [isChartCollapsed, setIsChartCollapsed] = useState(() => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+    try {
+      return window.localStorage.getItem(TCR_CHART_STORAGE_KEY) === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        TCR_CHART_STORAGE_KEY,
+        String(isChartCollapsed)
+      );
+    } catch {
+      // Ignore storage failures (private mode or disabled storage).
+    }
+  }, [isChartCollapsed]);
+
   const getTcrColor = (value: number) => {
     if (value < 1.2) return "border-critical";
     if (value < 1.6) return "border-high";
@@ -130,45 +158,79 @@ export const SystemState = ({
 
       {/* TCR Historic Chart */}
       <div className="bg-card/40 rounded-xl p-4">
-        <h3 className="text-sm font-semibold mb-4 text-muted-foreground">30-Day TCR History</h3>
-        <ResponsiveContainer width="100%" height={240}>
-          <LineChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
-            <XAxis 
-              dataKey="date" 
-              stroke="hsl(var(--muted-foreground))" 
-              tick={{ fill: 'hsl(var(--muted-foreground))' }}
-              tickLine={false}
-            />
-            <YAxis 
-              stroke="hsl(var(--muted-foreground))"
-              tick={{ fill: 'hsl(var(--muted-foreground))' }}
-              tickLine={false}
-              domain={[(dataMin: number) => dataMin * 0.9, (dataMax: number) => dataMax * 1.1]}
-              tickFormatter={(value: number) => value.toFixed(2)}
-            />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: 'hsl(var(--card))',
-                border: '1px solid hsl(var(--border))',
-                borderRadius: '8px',
-                color: 'hsl(var(--foreground))'
-              }}
-              formatter={(value: number, name: string) => {
-                if (name === 'tcr') return [`${(value * 100).toFixed(2)}%`, 'TCR'];
-                return [`$${value.toLocaleString()}`, 'BTC Price'];
-              }}
-            />
-            <Line 
-              type="monotone" 
-              dataKey="tcr" 
-              stroke="hsl(var(--primary))" 
-              strokeWidth={2}
-              dot={{ fill: 'hsl(var(--primary))', r: 4 }}
-              activeDot={{ r: 6 }}
-            />
-          </LineChart>
-        </ResponsiveContainer>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-semibold text-muted-foreground">
+            30-Day TCR History
+          </h3>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => setIsChartCollapsed((prev) => !prev)}
+          >
+            {isChartCollapsed ? (
+              <ChevronDown className="h-4 w-4" />
+            ) : (
+              <ChevronUp className="h-4 w-4" />
+            )}
+            <span className="sr-only">
+              {isChartCollapsed ? "Show chart" : "Hide chart"}
+            </span>
+          </Button>
+        </div>
+        {isChartCollapsed ? (
+          <div className="text-xs text-muted-foreground">
+            Chart hidden.
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={240}>
+            <LineChart data={chartData}>
+              <CartesianGrid
+                strokeDasharray="3 3"
+                stroke="hsl(var(--border))"
+                opacity={0.3}
+              />
+              <XAxis
+                dataKey="date"
+                stroke="hsl(var(--muted-foreground))"
+                tick={{ fill: "hsl(var(--muted-foreground))" }}
+                tickLine={false}
+              />
+              <YAxis
+                stroke="hsl(var(--muted-foreground))"
+                tick={{ fill: "hsl(var(--muted-foreground))" }}
+                tickLine={false}
+                domain={[
+                  (dataMin: number) => dataMin * 0.9,
+                  (dataMax: number) => dataMax * 1.1,
+                ]}
+                tickFormatter={(value: number) => value.toFixed(2)}
+              />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: "hsl(var(--card))",
+                  border: "1px solid hsl(var(--border))",
+                  borderRadius: "8px",
+                  color: "hsl(var(--foreground))",
+                }}
+                formatter={(value: number, name: string) => {
+                  if (name === "tcr")
+                    return [`${(value * 100).toFixed(2)}%`, "TCR"];
+                  return [`$${value.toLocaleString()}`, "BTC Price"];
+                }}
+              />
+              <Line
+                type="monotone"
+                dataKey="tcr"
+                stroke="hsl(var(--primary))"
+                strokeWidth={2}
+                dot={{ fill: "hsl(var(--primary))", r: 4 }}
+                activeDot={{ r: 6 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        )}
       </div>
     </Card>
   );

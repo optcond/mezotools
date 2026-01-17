@@ -1,5 +1,11 @@
-import { useState } from "react";
-import { Activity, ArrowDownRight, ArrowUpRight } from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+  Activity,
+  ArrowDownRight,
+  ArrowUpRight,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
 import {
   LineChart,
   Line,
@@ -13,9 +19,12 @@ import {
 import { Card } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePriceFeedHistory } from "@/hooks/usePriceFeedHistory";
 import { cn } from "@/lib/utils";
+
+const PRICE_FEED_CHART_STORAGE_KEY = "mezo-chart-collapse-price-feed";
 
 interface PriceFeedTabConfig {
   value: string;
@@ -217,7 +226,15 @@ const StatTile = ({
   );
 };
 
-const PriceFeedTabContent = ({ tab }: { tab: PriceFeedTabConfig }) => {
+const PriceFeedTabContent = ({
+  tab,
+  isChartCollapsed,
+  onToggleChart,
+}: {
+  tab: PriceFeedTabConfig;
+  isChartCollapsed: boolean;
+  onToggleChart: () => void;
+}) => {
   const { pricePoints, stats, isLoading, isFetching, error } =
     usePriceFeedHistory({
       source: tab.source,
@@ -327,19 +344,41 @@ const PriceFeedTabContent = ({ tab }: { tab: PriceFeedTabConfig }) => {
           <h3 className="text-sm font-semibold text-muted-foreground">
             Oracle Price by Block
           </h3>
-          {ChangeIcon ? (
-            <div
-              className={cn(
-                "inline-flex items-center gap-1 text-xs font-medium",
-                changeAccent === "positive" ? "text-safe" : "text-critical"
-              )}
+          <div className="flex items-center gap-2">
+            {ChangeIcon ? (
+              <div
+                className={cn(
+                  "inline-flex items-center gap-1 text-xs font-medium",
+                  changeAccent === "positive" ? "text-safe" : "text-critical"
+                )}
+              >
+                <ChangeIcon className="h-4 w-4" />
+                {formatChange(scaledChange, stats.percentChange)}
+              </div>
+            ) : null}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={onToggleChart}
             >
-              <ChangeIcon className="h-4 w-4" />
-              {formatChange(scaledChange, stats.percentChange)}
-            </div>
-          ) : null}
+              {isChartCollapsed ? (
+                <ChevronDown className="h-4 w-4" />
+              ) : (
+                <ChevronUp className="h-4 w-4" />
+              )}
+              <span className="sr-only">
+                {isChartCollapsed ? "Show chart" : "Hide chart"}
+              </span>
+            </Button>
+          </div>
         </div>
-        {error ? null : chartData.length > 0 ? (
+        {isChartCollapsed ? (
+          <div className="text-xs text-muted-foreground">
+            Chart hidden.
+          </div>
+        ) : error ? null : chartData.length > 0 ? (
           <ResponsiveContainer width="100%" height={260}>
             <LineChart data={chartData}>
               <CartesianGrid
@@ -407,9 +446,32 @@ const PriceFeedTabContent = ({ tab }: { tab: PriceFeedTabConfig }) => {
 
 export const PriceFeedHistory = () => {
   const [activeTab, setActiveTab] = useState<string>(PRICE_FEED_TABS[0].value);
+  const [isChartCollapsed, setIsChartCollapsed] = useState(() => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+    try {
+      return (
+        window.localStorage.getItem(PRICE_FEED_CHART_STORAGE_KEY) === "true"
+      );
+    } catch {
+      return false;
+    }
+  });
   const activeConfig =
     PRICE_FEED_TABS.find((tab) => tab.value === activeTab) ??
     PRICE_FEED_TABS[0];
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        PRICE_FEED_CHART_STORAGE_KEY,
+        String(isChartCollapsed)
+      );
+    } catch {
+      // Ignore storage failures (private mode or disabled storage).
+    }
+  }, [isChartCollapsed]);
 
   return (
     <Card className="glass-card p-6">
@@ -433,7 +495,12 @@ export const PriceFeedHistory = () => {
         </div>
 
         {PRICE_FEED_TABS.map((tab) => (
-          <PriceFeedTabContent key={tab.value} tab={tab} />
+          <PriceFeedTabContent
+            key={tab.value}
+            tab={tab}
+            isChartCollapsed={isChartCollapsed}
+            onToggleChart={() => setIsChartCollapsed((prev) => !prev)}
+          />
         ))}
       </Tabs>
     </Card>

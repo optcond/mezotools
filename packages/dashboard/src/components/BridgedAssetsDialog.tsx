@@ -1,12 +1,12 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Link2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
@@ -74,14 +74,17 @@ export const BridgedAssetsDialog = ({
     : null;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-3xl flex-col gap-4 overflow-hidden sm:w-full sm:max-h-[90vh]">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="right"
+        className="flex h-full w-full flex-col gap-4 overflow-hidden sm:max-w-3xl"
+      >
+        <SheetHeader>
+          <SheetTitle className="flex items-center gap-2">
             <Link2 className="h-5 w-5 text-primary" />
             Bridged assets
-          </DialogTitle>
-          <DialogDescription className="space-y-1 text-sm">
+          </SheetTitle>
+          <SheetDescription className="space-y-1 text-sm">
             <p>
               Live balances held by the Mezo bridge contract on Ethereum. Data
               refreshes every minute while this dialog is open
@@ -108,8 +111,8 @@ export const BridgedAssetsDialog = ({
                 "—"
               )}
             </p>
-          </DialogDescription>
-        </DialogHeader>
+          </SheetDescription>
+        </SheetHeader>
 
         <div className="flex min-h-0 flex-1 flex-col">
           {query.isLoading && assets.length === 0 ? (
@@ -195,7 +198,7 @@ export const BridgedAssetsDialog = ({
             </ScrollArea>
           )}
         </div>
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 };

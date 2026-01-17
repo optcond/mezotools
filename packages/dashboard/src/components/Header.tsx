@@ -1,4 +1,4 @@
-import { Loader2 } from "lucide-react";
+import { Loader2, SlidersHorizontal } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { SVGProps } from "react";
 import { Button } from "@/components/ui/button";
@@ -58,6 +58,8 @@ interface HeaderProps {
   onSwapClick?: () => void;
   onRedeemClick?: () => void;
   onBribesClick?: () => void;
+  onTrovesClick?: () => void;
+  onCustomizeClick?: () => void;
 }
 
 export const Header = ({
@@ -71,6 +73,8 @@ export const Header = ({
   onSwapClick,
   onRedeemClick,
   onBribesClick,
+  onTrovesClick,
+  onCustomizeClick,
 }: HeaderProps) => {
   const updatedLabel = lastUpdatedAt
     ? formatDistanceToNow(new Date(lastUpdatedAt), { addSuffix: true })
@@ -143,6 +147,25 @@ export const Header = ({
               onClick={onBribesClick}
             >
               Bribes
+            </Button>
+            {onTrovesClick ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="border border-primary bg-transparent text-primary hover:bg-primary/10 hover:text-primary"
+                onClick={onTrovesClick}
+              >
+                Troves
+              </Button>
+            ) : null}
+            <Button
+              size="sm"
+              variant="ghost"
+              className="border border-primary bg-transparent text-primary hover:bg-primary/10 hover:text-primary"
+              onClick={onCustomizeClick}
+            >
+              <SlidersHorizontal className="mr-2 h-4 w-4" />
+              Customize
             </Button>
             <Button
               asChild

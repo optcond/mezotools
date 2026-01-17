@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -459,19 +459,22 @@ export const RedemptionDialog = ({
     !wallet.account || !wallet.walletClient || !simulation || !hints || isBusy;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-3xl flex-col gap-4 overflow-y-auto sm:h-auto sm:w-full sm:max-h-[90vh]">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="right"
+        className="flex h-full w-full flex-col gap-4 overflow-y-auto sm:max-w-3xl"
+      >
+        <SheetHeader>
+          <SheetTitle className="flex items-center gap-2">
             <ArrowRightLeft className="h-5 w-5 text-primary" />
             Redeem MUSD
-          </DialogTitle>
-          <DialogDescription className="space-y-1 text-sm">
+          </SheetTitle>
+          <SheetDescription className="space-y-1 text-sm">
             Simulate and execute redemptions directly against the Mezo
             contracts. The simulation uses on-chain hints and checks the system
             health before attempting a transaction.
-          </DialogDescription>
-        </DialogHeader>
+          </SheetDescription>
+        </SheetHeader>
         <div className="space-y-5">
           <Alert className="border border-primary/40 bg-primary/5">
             <Sparkles className="h-4 w-4" />
@@ -686,7 +689,7 @@ export const RedemptionDialog = ({
             </div>
           )}
         </div>
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 };

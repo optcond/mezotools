@@ -1,5 +1,13 @@
-import { lazy, Suspense, useMemo, useState } from "react";
-import { Loader2, AlertTriangle } from "lucide-react";
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useMemo,
+  useState,
+  type DragEvent,
+} from "react";
+import { Loader2, AlertTriangle, GripVertical } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 
 import { Header } from "@/components/Header";
 import { BridgedAssetsDialog } from "@/components/BridgedAssetsDialog";
@@ -7,10 +15,21 @@ import { DebtCalculatorDialog } from "@/components/DebtCalculatorDialog";
 import { RedemptionDialog } from "@/components/RedeemDialog";
 import { BribesDialog } from "@/components/BribesDialog";
 // import { SwapDialog } from "@/components/SwapDialog";
+import { AllTrovesPreview } from "@/components/AllTrovesPreview";
+import { AllTroves } from "@/components/AllTroves";
 import { useMonitorData } from "@/hooks/useMonitorData";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { useWallet } from "@/hooks/useWallet";
+import { Label } from "@/components/ui/label";
 
 const SystemStateSection = lazy(() =>
   import("@/components/SystemState").then((module) => ({
@@ -30,11 +49,6 @@ const RiskAnalysisSection = lazy(() =>
 const LatestActivitySection = lazy(() =>
   import("@/components/LatestActivity").then((module) => ({
     default: module.LatestActivity,
-  }))
-);
-const AllTrovesSection = lazy(() =>
-  import("@/components/AllTroves").then((module) => ({
-    default: module.AllTroves,
   }))
 );
 const PersonalWalletStatsSection = lazy(() =>
@@ -86,12 +100,6 @@ const LatestActivityFallback = () => (
   </div>
 );
 
-const AllTrovesFallback = () => (
-  <div className="glass-card p-6 space-y-4">
-    <div className="h-6 w-32 rounded bg-muted/30" />
-    <div className="h-64 rounded-xl bg-muted/30" />
-  </div>
-);
 const PersonalWalletStatsFallback = () => (
   <div className="glass-card p-6 space-y-4">
     <div className="h-6 w-56 rounded bg-muted/30" />
@@ -99,6 +107,29 @@ const PersonalWalletStatsFallback = () => (
     <div className="h-32 rounded-xl bg-muted/30" />
   </div>
 );
+
+const WIDGET_STORAGE_KEY = "mezo-dashboard-widgets";
+const WIDGET_ORDER_STORAGE_KEY = "mezo-dashboard-widget-order";
+const dashboardWidgets = [
+  { key: "system-state", label: "System State" },
+  { key: "risk", label: "Risk" },
+  { key: "price-feed", label: "Price feed" },
+  { key: "latest-activity", label: "Latest activity" },
+  { key: "troves-summary", label: "All Troves" },
+  { key: "wallet", label: "Wallet" },
+] as const;
+
+type DashboardWidgetKey = (typeof dashboardWidgets)[number]["key"];
+
+const normalizeWidgetOrder = (order: DashboardWidgetKey[]) => {
+  const validKeys = new Set(dashboardWidgets.map((widget) => widget.key));
+  const unique = order.filter(
+    (key, index) => validKeys.has(key) && order.indexOf(key) === index
+  );
+  const defaults = dashboardWidgets.map((widget) => widget.key);
+  const missing = defaults.filter((key) => !unique.includes(key));
+  return [...unique, ...missing];
+};
 
 const Index = () => {
   const {
@@ -114,11 +145,58 @@ const Index = () => {
     lastUpdatedAt,
   } = useMonitorData();
   const wallet = useWallet();
-  const [isBridgedAssetsOpen, setIsBridgedAssetsOpen] = useState(false);
-  const [isDebtCalculatorOpen, setIsDebtCalculatorOpen] = useState(false);
-  const [isRedemptionDialogOpen, setIsRedemptionDialogOpen] = useState(false);
-  const [isBribesDialogOpen, setIsBribesDialogOpen] = useState(false);
-  // const [isSwapDialogOpen, setIsSwapDialogOpen] = useState(false);
+  const [isCustomizeOpen, setIsCustomizeOpen] = useState(false);
+  const [isTrovesSheetOpen, setIsTrovesSheetOpen] = useState(false);
+  const [draggingWidget, setDraggingWidget] =
+    useState<DashboardWidgetKey | null>(null);
+  const [widgetVisibility, setWidgetVisibility] = useState<
+    Record<DashboardWidgetKey, boolean>
+  >(() => {
+    const defaults = dashboardWidgets.reduce(
+      (acc, widget) => ({ ...acc, [widget.key]: true }),
+      {} as Record<DashboardWidgetKey, boolean>
+    );
+    if (typeof window === "undefined") {
+      return defaults;
+    }
+    try {
+      const stored = window.localStorage.getItem(WIDGET_STORAGE_KEY);
+      if (!stored) {
+        return defaults;
+      }
+      const parsed = JSON.parse(stored) as Partial<
+        Record<DashboardWidgetKey, boolean>
+      >;
+      return { ...defaults, ...parsed };
+    } catch {
+      return defaults;
+    }
+  });
+  const [widgetOrder, setWidgetOrder] = useState<DashboardWidgetKey[]>(() => {
+    const defaults = dashboardWidgets.map((widget) => widget.key);
+    if (typeof window === "undefined") {
+      return defaults;
+    }
+    try {
+      const stored = window.localStorage.getItem(WIDGET_ORDER_STORAGE_KEY);
+      if (!stored) {
+        return defaults;
+      }
+      const parsed = JSON.parse(stored) as DashboardWidgetKey[];
+      return normalizeWidgetOrder(parsed);
+    } catch {
+      return defaults;
+    }
+  });
+  const [searchParams, setSearchParams] = useSearchParams();
+  const panelParam = searchParams.get("panel");
+  const activePanel =
+    panelParam === "bridged-assets" ||
+    panelParam === "debt-calculator" ||
+    panelParam === "redemption" ||
+    panelParam === "bribes"
+      ? panelParam
+      : null;
 
   const latestMetric = dailyMetrics[0];
 
@@ -198,6 +276,156 @@ const Index = () => {
   const isRefreshing = isFetching && !isLoading;
   const showError = Boolean(error);
   const effectiveLastUpdated = lastUpdatedAt ?? blockTimestamp;
+  const setPanelParam = (nextPanel: string | null, replace = false) => {
+    const nextParams = new URLSearchParams(searchParams);
+    if (nextPanel) {
+      nextParams.set("panel", nextPanel);
+    } else {
+      nextParams.delete("panel");
+    }
+    setSearchParams(nextParams, { replace });
+  };
+
+  const handlePanelOpenChange =
+    (panel: string) => (open: boolean) => {
+      setPanelParam(open ? panel : null, !open);
+    };
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        WIDGET_STORAGE_KEY,
+        JSON.stringify(widgetVisibility)
+      );
+    } catch {
+      // Ignore storage failures (private mode or disabled storage).
+    }
+  }, [widgetVisibility]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        WIDGET_ORDER_STORAGE_KEY,
+        JSON.stringify(widgetOrder)
+      );
+    } catch {
+      // Ignore storage failures (private mode or disabled storage).
+    }
+  }, [widgetOrder]);
+
+  const toggleWidget = (key: DashboardWidgetKey) => {
+    setWidgetVisibility((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const moveWidget = (fromKey: DashboardWidgetKey, toKey: DashboardWidgetKey) => {
+    if (fromKey === toKey) {
+      return;
+    }
+    setWidgetOrder((prev) => {
+      const fromIndex = prev.indexOf(fromKey);
+      const toIndex = prev.indexOf(toKey);
+      if (fromIndex === -1 || toIndex === -1) {
+        return prev;
+      }
+      const next = [...prev];
+      next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, fromKey);
+      return next;
+    });
+  };
+
+  const handleDragStart =
+    (key: DashboardWidgetKey) => (event: DragEvent<HTMLDivElement>) => {
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain", key);
+      setDraggingWidget(key);
+    };
+
+  const handleDragOver =
+    (key: DashboardWidgetKey) => (event: DragEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+      if (draggingWidget && draggingWidget !== key) {
+        moveWidget(draggingWidget, key);
+        setDraggingWidget(key);
+      }
+    };
+
+  const handleDrop =
+    (key: DashboardWidgetKey) => (event: DragEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      const sourceKey = event.dataTransfer.getData(
+        "text/plain"
+      ) as DashboardWidgetKey;
+      if (sourceKey) {
+        moveWidget(sourceKey, key);
+      }
+      setDraggingWidget(null);
+    };
+
+  const handleDragEnd = () => {
+    setDraggingWidget(null);
+  };
+
+  const widgetContent: Record<DashboardWidgetKey, JSX.Element> = {
+    wallet: (
+      <Suspense fallback={<PersonalWalletStatsFallback />}>
+        <PersonalWalletStatsSection
+          troves={troves}
+          liquidations={liquidations}
+          redemptions={redemptions}
+          isLoading={isLoading}
+          wallet={wallet}
+          onDebtCalculatorClick={() => setPanelParam("debt-calculator")}
+        />
+      </Suspense>
+    ),
+    "system-state": (
+      <Suspense fallback={<SystemStateFallback />}>
+        <SystemStateSection
+          tcr={systemMetrics.tcr}
+          tcrMinus10={systemMetrics.tcrMinus10}
+          tcrMinus20={systemMetrics.tcrMinus20}
+          totalCollateral={systemMetrics.totalCollateral}
+          totalDebt={systemMetrics.totalDebt}
+          totalTroves={systemMetrics.totalTroves}
+          chartData={chartData}
+          isLoading={isLoading}
+        />
+      </Suspense>
+    ),
+    "price-feed": (
+      <Suspense fallback={<PriceFeedHistoryFallback />}>
+        <PriceFeedHistorySection />
+      </Suspense>
+    ),
+    risk: (
+      <Suspense fallback={<RiskAnalysisFallback />}>
+        <RiskAnalysisSection
+          critical={riskBuckets.critical}
+          high={riskBuckets.high}
+          elevated={riskBuckets.elevated}
+          safe={riskBuckets.safe}
+          isLoading={isLoading}
+        />
+      </Suspense>
+    ),
+    "latest-activity": (
+      <Suspense fallback={<LatestActivityFallback />}>
+        <LatestActivitySection
+          liquidations={liquidations}
+          redemptions={redemptions}
+          isLoading={isLoading}
+        />
+      </Suspense>
+    ),
+    "troves-summary": (
+      <AllTrovesPreview
+        troves={troves}
+        onOpenFullTable={() => setIsTrovesSheetOpen(true)}
+      />
+    ),
+  };
 
   return (
     <div className="min-h-screen">
@@ -207,10 +435,12 @@ const Index = () => {
         lastUpdatedAt={effectiveLastUpdated}
         btcPrice={systemMetrics.btcPrice}
         isSyncing={isRefreshing}
-        onBridgedAssetsClick={() => setIsBridgedAssetsOpen(true)}
-        onDebtCalculatorClick={() => setIsDebtCalculatorOpen(true)}
-        onRedeemClick={() => setIsRedemptionDialogOpen(true)}
-        onBribesClick={() => setIsBribesDialogOpen(true)}
+        onBridgedAssetsClick={() => setPanelParam("bridged-assets")}
+        onDebtCalculatorClick={() => setPanelParam("debt-calculator")}
+        onRedeemClick={() => setPanelParam("redemption")}
+        onBribesClick={() => setPanelParam("bribes")}
+        onTrovesClick={() => setIsTrovesSheetOpen(true)}
+        onCustomizeClick={() => setIsCustomizeOpen(true)}
         // onSwapClick={() => setIsSwapDialogOpen(true)}
       />
 
@@ -241,78 +471,98 @@ const Index = () => {
           </Alert>
         )}
 
-        <Suspense fallback={<PersonalWalletStatsFallback />}>
-          <PersonalWalletStatsSection
-            troves={troves}
-            liquidations={liquidations}
-            redemptions={redemptions}
-            isLoading={isLoading}
-            wallet={wallet}
-            onDebtCalculatorClick={() => setIsDebtCalculatorOpen(true)}
-          />
-        </Suspense>
-
-        <Suspense fallback={<SystemStateFallback />}>
-          <SystemStateSection
-            tcr={systemMetrics.tcr}
-            tcrMinus10={systemMetrics.tcrMinus10}
-            tcrMinus20={systemMetrics.tcrMinus20}
-            totalCollateral={systemMetrics.totalCollateral}
-            totalDebt={systemMetrics.totalDebt}
-            totalTroves={systemMetrics.totalTroves}
-            chartData={chartData}
-            isLoading={isLoading}
-          />
-        </Suspense>
-
-        <Suspense fallback={<PriceFeedHistoryFallback />}>
-          <PriceFeedHistorySection />
-        </Suspense>
-
-        <Suspense fallback={<RiskAnalysisFallback />}>
-          <RiskAnalysisSection
-            critical={riskBuckets.critical}
-            high={riskBuckets.high}
-            elevated={riskBuckets.elevated}
-            safe={riskBuckets.safe}
-            isLoading={isLoading}
-          />
-        </Suspense>
-
-        <Suspense fallback={<LatestActivityFallback />}>
-          <LatestActivitySection
-            liquidations={liquidations}
-            redemptions={redemptions}
-            isLoading={isLoading}
-          />
-        </Suspense>
-
-        <Suspense fallback={<AllTrovesFallback />}>
-          <AllTrovesSection troves={troves} isLoading={isLoading} />
-        </Suspense>
+        {widgetOrder
+          .filter((key) => widgetVisibility[key])
+          .map((key) => (
+            <div key={key}>{widgetContent[key]}</div>
+          ))}
       </main>
 
       <BridgedAssetsDialog
-        open={isBridgedAssetsOpen}
-        onOpenChange={setIsBridgedAssetsOpen}
+        open={activePanel === "bridged-assets"}
+        onOpenChange={handlePanelOpenChange("bridged-assets")}
       />
       <DebtCalculatorDialog
-        open={isDebtCalculatorOpen}
-        onOpenChange={setIsDebtCalculatorOpen}
+        open={activePanel === "debt-calculator"}
+        onOpenChange={handlePanelOpenChange("debt-calculator")}
         btcPrice={systemMetrics.btcPrice}
         troves={troves}
         walletAccount={wallet.account}
       />
       <RedemptionDialog
-        open={isRedemptionDialogOpen}
-        onOpenChange={setIsRedemptionDialogOpen}
+        open={activePanel === "redemption"}
+        onOpenChange={handlePanelOpenChange("redemption")}
         wallet={wallet}
       />
       <BribesDialog
-        open={isBribesDialogOpen}
-        onOpenChange={setIsBribesDialogOpen}
+        open={activePanel === "bribes"}
+        onOpenChange={handlePanelOpenChange("bribes")}
         btcPrice={systemMetrics.btcPrice}
       />
+      <Sheet open={isTrovesSheetOpen} onOpenChange={setIsTrovesSheetOpen}>
+        <SheetContent
+          side="right"
+          className="flex h-full w-full flex-col gap-6 sm:max-w-5xl"
+        >
+          <SheetHeader>
+            <SheetTitle>All Troves</SheetTitle>
+            <SheetDescription>
+              Full trove list with filters, search, and CSV export.
+            </SheetDescription>
+          </SheetHeader>
+          <AllTroves troves={troves} isLoading={isLoading} stickyControls />
+        </SheetContent>
+      </Sheet>
+      <Sheet open={isCustomizeOpen} onOpenChange={setIsCustomizeOpen}>
+        <SheetContent
+          side="right"
+          className="flex h-full w-full flex-col gap-6 sm:max-w-md"
+        >
+          <SheetHeader>
+            <SheetTitle>Customize dashboard</SheetTitle>
+            <SheetDescription>
+              Pick the widgets you want to keep on screen and drag to reorder.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="space-y-4">
+            {widgetOrder.map((key) => {
+              const widget = dashboardWidgets.find((item) => item.key === key);
+              if (!widget) {
+                return null;
+              }
+              const isDragging = draggingWidget === key;
+              return (
+                <div
+                  key={widget.key}
+                  draggable
+                  onDragStart={handleDragStart(widget.key)}
+                  onDragOver={handleDragOver(widget.key)}
+                  onDrop={handleDrop(widget.key)}
+                  onDragEnd={handleDragEnd}
+                  className={`flex items-center justify-between gap-4 rounded-xl border border-card-border/60 bg-card/40 px-4 py-3 transition ${
+                    isDragging ? "opacity-70 ring-1 ring-primary/40" : ""
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <GripVertical className="h-4 w-4 text-muted-foreground" />
+                    <Label
+                      htmlFor={`widget-${widget.key}`}
+                      className="text-sm font-medium text-foreground"
+                    >
+                      {widget.label}
+                    </Label>
+                  </div>
+                  <Checkbox
+                    id={`widget-${widget.key}`}
+                    checked={widgetVisibility[widget.key]}
+                    onCheckedChange={() => toggleWidget(widget.key)}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </SheetContent>
+      </Sheet>
       {/* <SwapDialog open={isSwapDialogOpen} onOpenChange={setIsSwapDialogOpen} /> */}
     </div>
   );
