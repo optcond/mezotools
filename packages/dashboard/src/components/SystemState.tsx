@@ -6,7 +6,6 @@ import {
   CircleDollarSign,
   Gauge,
   ArrowDownLeft,
-  ArrowDownRight,
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
@@ -14,13 +13,13 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { formatNumber } from "@/lib/formatNumber";
+import { usePriceFeedHistory } from "@/hooks/usePriceFeedHistory";
 
 const TCR_CHART_STORAGE_KEY = "mezo-chart-collapse-system-state";
 
 interface SystemStateProps {
   tcr: number;
   tcrMinus10: number;
-  tcrMinus20: number;
   totalCollateral: number;
   totalDebt: number;
   totalTroves: number;
@@ -52,13 +51,27 @@ const MetricTile = ({
 export const SystemState = ({ 
   tcr, 
   tcrMinus10, 
-  tcrMinus20, 
   totalCollateral,
   totalDebt, 
   totalTroves,
   chartData,
   isLoading 
 }: SystemStateProps) => {
+  const { stats: musdStats } = usePriceFeedHistory({
+    source: "musd_usdc",
+    hours: 24,
+    limit: 300,
+  });
+  const musdPrice =
+    musdStats.latestPrice !== null ? musdStats.latestPrice / 100000 : null;
+  const musdLabel =
+    musdPrice !== null && Number.isFinite(musdPrice)
+      ? `$${musdPrice.toLocaleString(undefined, {
+          minimumFractionDigits: 4,
+          maximumFractionDigits: 4,
+        })}`
+      : "—";
+
   const [isChartCollapsed, setIsChartCollapsed] = useState(() => {
     if (typeof window === "undefined") {
       return false;
@@ -148,11 +161,11 @@ export const SystemState = ({
           icon={ArrowDownLeft}
         />
         <MetricTile
-          label="TCR -20%"
-          value={`${(tcrMinus20 * 100).toFixed(1)}%`}
-          subtitle="20% price drop"
-          borderColor={getTcrColor(tcrMinus20)}
-          icon={ArrowDownRight}
+          label="MUSD / USDC"
+          value={musdLabel}
+          subtitle="Latest price"
+          borderColor="border-primary"
+          icon={CircleDollarSign}
         />
       </div>
 

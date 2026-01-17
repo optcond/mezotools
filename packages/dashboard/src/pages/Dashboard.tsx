@@ -218,8 +218,6 @@ const Dashboard = () => {
       tcr: baseRatio,
       tcrMinus10:
         totalDebt > 0 ? (totalCollateral * btcPrice * 0.9) / totalDebt : 0,
-      tcrMinus20:
-        totalDebt > 0 ? (totalCollateral * btcPrice * 0.8) / totalDebt : 0,
       totalCollateral,
       totalDebt,
       totalTroves: troves.length,
@@ -385,7 +383,6 @@ const Dashboard = () => {
         <SystemStateSection
           tcr={systemMetrics.tcr}
           tcrMinus10={systemMetrics.tcrMinus10}
-          tcrMinus20={systemMetrics.tcrMinus20}
           totalCollateral={systemMetrics.totalCollateral}
           totalDebt={systemMetrics.totalDebt}
           totalTroves={systemMetrics.totalTroves}
