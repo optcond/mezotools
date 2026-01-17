@@ -64,17 +64,17 @@ const sumBribes = (rewards: GaugeIncentive["rewards"]) =>
 type GaugeRow = Tables<"gauges">;
 type GaugeStateRow = Tables<"gauge_state">;
 
-interface BribesDialogProps {
+interface BribesSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   btcPrice: number;
 }
 
-export const BribesDialog = ({
+export const BribesSheet = ({
   open,
   onOpenChange,
   btcPrice,
-}: BribesDialogProps) => {
+}: BribesSheetProps) => {
   const [calculatorInput, setCalculatorInput] = useState("");
   const [calculatorVotes, setCalculatorVotes] = useState<number | null>(null);
   const [sortKey, setSortKey] = useState<"votes" | "apr">("votes");
@@ -392,6 +392,8 @@ export const BribesDialog = ({
       <SheetContent
         side="right"
         className="flex h-full w-full flex-col gap-4 overflow-y-auto sm:max-w-5xl"
+        enableSwipeClose
+        onSwipeClose={() => onOpenChange(false)}
       >
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">

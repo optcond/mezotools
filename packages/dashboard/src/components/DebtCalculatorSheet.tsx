@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Calculator } from "lucide-react";
 import type { Trove } from "@/hooks/useMonitorData";
 
-interface DebtCalculatorDialogProps {
+interface DebtCalculatorSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   btcPrice: number;
@@ -54,13 +54,13 @@ const parseInput = (value: string) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
-export const DebtCalculatorDialog = ({
+export const DebtCalculatorSheet = ({
   open,
   onOpenChange,
   btcPrice,
   troves,
   walletAccount,
-}: DebtCalculatorDialogProps) => {
+}: DebtCalculatorSheetProps) => {
   const [collateralInput, setCollateralInput] = useState(
     DEFAULT_FORM.collateral
   );
@@ -332,6 +332,8 @@ export const DebtCalculatorDialog = ({
       <SheetContent
         side="right"
         className="h-full w-full overflow-y-auto sm:max-w-3xl"
+        enableSwipeClose
+        onSwipeClose={() => onOpenChange(false)}
       >
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">

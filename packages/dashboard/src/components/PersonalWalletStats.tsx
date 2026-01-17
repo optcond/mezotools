@@ -63,10 +63,7 @@ export const PersonalWalletStats = ({
   );
   const musdTokenAddress =
     contracts.tokens?.MUSD.address ?? MezoTokens.MUSD.address;
-  const {
-    data: btcBalance,
-    isFetching: isBtcBalanceFetching,
-  } = useBalance({
+  const { data: btcBalance, isFetching: isBtcBalanceFetching } = useBalance({
     address: account ? (account as `0x${string}`) : undefined,
     chainId: activeChainId,
     query: {
@@ -74,10 +71,7 @@ export const PersonalWalletStats = ({
       refetchInterval: account ? 30_000 : false,
     },
   });
-  const {
-    data: musdBalance,
-    isFetching: isMusdBalanceFetching,
-  } = useBalance({
+  const { data: musdBalance, isFetching: isMusdBalanceFetching } = useBalance({
     address: account ? (account as `0x${string}`) : undefined,
     chainId: activeChainId,
     token: musdTokenAddress as `0x${string}`,
@@ -181,13 +175,7 @@ export const PersonalWalletStats = ({
     : "Connect wallet";
 
   const renderConnectMessage = () => (
-    <div className="flex flex-col gap-3 rounded-2xl border border-card-border/40 bg-card/20 p-6 text-sm text-muted-foreground sm:flex-row sm:items-center">
-      <ShieldAlert className="h-5 w-5 text-primary" />
-      <div>
-        Connect with MetaMask, Rabby, or any EIP-1193 compatible wallet to view
-        personalized trove, redemption, and liquidation data.
-      </div>
-    </div>
+    <div className="flex flex-col gap-3 rounded-2xl border border-card-border/40 bg-card/20 p-6 text-sm text-muted-foreground sm:flex-row sm:items-center"></div>
   );
 
   const renderSkeleton = () => (
@@ -258,8 +246,6 @@ export const PersonalWalletStats = ({
           </div>
         </div>
       )}
-
-      {!isDisplayingData && renderConnectMessage()}
 
       {isDisplayingData && (
         <>
@@ -453,52 +439,52 @@ export const PersonalWalletStats = ({
                           </button>
                         </div>
                         <div className="mt-2 grid grid-cols-2 gap-3">
-                      <div>
-                        <p className="text-xs text-muted-foreground">
-                          Attempted
-                        </p>
-                        <p className="font-semibold">
-                          {formatNumber(redemption.attempted_amount, {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}{" "}
-                          MUSD
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">
-                          Actual
-                        </p>
-                        <p className="font-semibold">
-                          {formatNumber(redemption.actual_amount, {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}{" "}
-                          MUSD
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">
-                          Collateral sent
-                        </p>
-                        <p className="font-semibold">
-                          {formatNumber(redemption.collateral_sent, {
-                            minimumFractionDigits: 4,
-                            maximumFractionDigits: 4,
-                          })}{" "}
-                          BTC
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Fee</p>
-                        <p className="font-semibold">
-                          {formatNumber(redemption.collateral_fee, {
-                            minimumFractionDigits: 4,
-                            maximumFractionDigits: 4,
-                          })}{" "}
-                          BTC
-                        </p>
-                      </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">
+                              Attempted
+                            </p>
+                            <p className="font-semibold">
+                              {formatNumber(redemption.attempted_amount, {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}{" "}
+                              MUSD
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">
+                              Actual
+                            </p>
+                            <p className="font-semibold">
+                              {formatNumber(redemption.actual_amount, {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}{" "}
+                              MUSD
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">
+                              Collateral sent
+                            </p>
+                            <p className="font-semibold">
+                              {formatNumber(redemption.collateral_sent, {
+                                minimumFractionDigits: 4,
+                                maximumFractionDigits: 4,
+                              })}{" "}
+                              BTC
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Fee</p>
+                            <p className="font-semibold">
+                              {formatNumber(redemption.collateral_fee, {
+                                minimumFractionDigits: 4,
+                                maximumFractionDigits: 4,
+                              })}{" "}
+                              BTC
+                            </p>
+                          </div>
                         </div>
                       </div>
                     ))}

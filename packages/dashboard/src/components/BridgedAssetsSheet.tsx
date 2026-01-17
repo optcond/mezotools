@@ -14,7 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 
-interface BridgedAssetsDialogProps {
+interface BridgedAssetsSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -38,10 +38,10 @@ const truncateAddress = (address: string) => {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
 };
 
-export const BridgedAssetsDialog = ({
+export const BridgedAssetsSheet = ({
   open,
   onOpenChange,
-}: BridgedAssetsDialogProps) => {
+}: BridgedAssetsSheetProps) => {
   const query = useQuery({
     queryKey: ["bridge-assets"],
     enabled: open,
@@ -78,6 +78,8 @@ export const BridgedAssetsDialog = ({
       <SheetContent
         side="right"
         className="flex h-full w-full flex-col gap-4 overflow-hidden sm:max-w-3xl"
+        enableSwipeClose
+        onSwipeClose={() => onOpenChange(false)}
       >
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">

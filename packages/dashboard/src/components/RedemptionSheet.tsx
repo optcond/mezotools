@@ -124,17 +124,17 @@ const truncateAddress = (address: string) => {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
 };
 
-interface RedemptionDialogProps {
+interface RedemptionSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   wallet: WalletControls;
 }
 
-export const RedemptionDialog = ({
+export const RedemptionSheet = ({
   open,
   onOpenChange,
   wallet,
-}: RedemptionDialogProps) => {
+}: RedemptionSheetProps) => {
   const [amountInput, setAmountInput] = useState("1000");
   const [iterationInput, setIterationInput] = useState("50");
   const [status, setStatus] = useState("Bootstrapping redemption helpers…");
@@ -463,6 +463,8 @@ export const RedemptionDialog = ({
       <SheetContent
         side="right"
         className="flex h-full w-full flex-col gap-4 overflow-y-auto sm:max-w-3xl"
+        enableSwipeClose
+        onSwipeClose={() => onOpenChange(false)}
       >
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">

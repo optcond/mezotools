@@ -28,6 +28,10 @@ interface Trove {
 interface AllTrovesProps {
   troves: Trove[];
   isLoading: boolean;
+  stickyControls?: boolean;
+  variant?: "card" | "sheet";
+  showTitle?: boolean;
+  stickyOffsetClass?: string;
 }
 
 type PresetFilter =
@@ -49,7 +53,14 @@ const truncateAddress = (address: string) => {
   return `${address.slice(0, 8)}...${address.slice(-6)}`;
 };
 
-export const AllTroves = ({ troves, isLoading }: AllTrovesProps) => {
+export const AllTroves = ({
+  troves,
+  isLoading,
+  stickyControls = false,
+  variant = "card",
+  showTitle = true,
+  stickyOffsetClass = "sm:top-20",
+}: AllTrovesProps) => {
   const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [preset, setPreset] = useState<PresetFilter>("all");
@@ -168,11 +179,36 @@ export const AllTroves = ({ troves, isLoading }: AllTrovesProps) => {
   };
 
   const copyAddress = async (address: string) => {
+    const fallbackCopy = () => {
+      const textarea = document.createElement("textarea");
+      textarea.value = address;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      const succeeded = document.execCommand("copy");
+      document.body.removeChild(textarea);
+      return succeeded;
+    };
+
     try {
-      await navigator.clipboard.writeText(address);
-      toast({ title: "Address copied" });
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(address);
+        toast({ title: "Address copied" });
+        return;
+      }
+      const succeeded = fallbackCopy();
+      toast({
+        title: succeeded ? "Address copied" : "Failed to copy address",
+        variant: succeeded ? "default" : "destructive",
+      });
     } catch {
-      toast({ title: "Failed to copy address", variant: "destructive" });
+      const succeeded = fallbackCopy();
+      toast({
+        title: succeeded ? "Address copied" : "Failed to copy address",
+        variant: succeeded ? "default" : "destructive",
+      });
     }
   };
 
@@ -185,81 +221,104 @@ export const AllTroves = ({ troves, isLoading }: AllTrovesProps) => {
     );
   };
 
+  const Wrapper = variant === "sheet" ? "div" : Card;
+  const wrapperClass =
+    variant === "sheet" ? "space-y-6" : "glass-card p-6";
+
   if (isLoading) {
     return (
-      <Card className="glass-card p-6">
-        <h2 className="text-lg font-semibold mb-4">All Troves</h2>
+      <Wrapper className={wrapperClass}>
+        {showTitle && (
+          <h2 className="text-lg font-semibold mb-4">All Troves</h2>
+        )}
         <div className="h-96 bg-muted/20 animate-pulse rounded-xl" />
-      </Card>
+      </Wrapper>
     );
   }
 
   return (
-    <Card className="glass-card p-6">
-      <h2 className="text-lg font-semibold mb-4 flex items-center gap-2 text-primary">
-        <Vault className="h-5 w-5 text-primary" />
-        All Troves
-      </h2>
+    <Wrapper className={wrapperClass}>
+      <div
+        className={
+          stickyControls
+            ? `-mx-6 mb-6 border-b border-card-border/60 bg-background/80 px-6 pb-4 pt-2 backdrop-blur sm:sticky ${stickyOffsetClass} sm:z-20`
+            : "mb-6"
+        }
+      >
+        <div className="space-y-4 rounded-xl border border-card-border/60 bg-muted/20 p-4">
+          {showTitle ? (
+            <div className="space-y-1">
+              <h2 className="text-lg font-semibold flex items-center gap-2 text-primary">
+                <Vault className="h-5 w-5 text-primary" />
+                All Troves
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Filter, search, and export the full trove list.
+              </p>
+            </div>
+          ) : null}
 
-      {/* Controls */}
-      <div className="space-y-4 mb-6">
-        {/* Search and export */}
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <div className="relative flex-1 w-full">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search owner address..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
-            />
+          {/* Controls */}
+          <div className="space-y-4">
+            {/* Search and export */}
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <div className="relative flex-1 w-full">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search owner address..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <Button
+                onClick={exportCSV}
+                variant="outline"
+                className="w-full gap-2 sm:w-auto"
+              >
+                <Download className="h-4 w-4" />
+                CSV
+              </Button>
+            </div>
+
+            {/* Preset filters */}
+            <div className="flex flex-wrap gap-2">
+              {(
+                [
+                  "all",
+                  "critical",
+                  "high",
+                  "medium",
+                  "safe",
+                  "watchlist",
+                ] as PresetFilter[]
+              ).map((p) => (
+                <Button
+                  key={p}
+                  variant={preset === p ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setPreset(p)}
+                  className="capitalize"
+                >
+                  {p}
+                  {p === "watchlist" && watchlist.size > 0 && (
+                    <Badge variant="secondary" className="ml-2">
+                      {formatNumber(watchlist.size)}
+                    </Badge>
+                  )}
+                </Button>
+              ))}
+            </div>
           </div>
-          <Button
-            onClick={exportCSV}
-            variant="outline"
-            className="w-full gap-2 sm:w-auto"
-          >
-            <Download className="h-4 w-4" />
-            CSV
-          </Button>
-        </div>
-
-        {/* Preset filters */}
-        <div className="flex flex-wrap gap-2">
-          {(
-            [
-              "all",
-              "critical",
-              "high",
-              "medium",
-              "safe",
-              "watchlist",
-            ] as PresetFilter[]
-          ).map((p) => (
-            <Button
-              key={p}
-              variant={preset === p ? "default" : "outline"}
-              size="sm"
-              onClick={() => setPreset(p)}
-              className="capitalize"
-            >
-              {p}
-              {p === "watchlist" && watchlist.size > 0 && (
-                <Badge variant="secondary" className="ml-2">
-                  {formatNumber(watchlist.size)}
-                </Badge>
-              )}
-            </Button>
-          ))}
         </div>
       </div>
 
       {/* Desktop Table */}
-      <div className="hidden md:block border border-card-border/40 rounded-xl overflow-hidden">
+      <div className="hidden md:block border border-card-border/60 rounded-xl overflow-hidden bg-card/20">
         <div className="max-h-[560px] overflow-y-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-card-border">
+              <tr className="border-b border-card-border/60 bg-muted/20">
                 <th className="text-left p-3 text-sm font-semibold">
                   <button
                     onClick={() => handleSort("owner")}
@@ -308,7 +367,7 @@ export const AllTroves = ({ troves, isLoading }: AllTrovesProps) => {
               {filteredTroves.map((trove) => (
                 <tr
                   key={trove.id}
-                  className="border-b border-card-border/40 hover:bg-card/30 transition-smooth"
+                  className="border-b border-card-border/40 hover:bg-muted/20 transition-smooth"
                 >
                   <td className="p-3">
                     <div className="flex items-center gap-2">
@@ -403,7 +462,7 @@ export const AllTroves = ({ troves, isLoading }: AllTrovesProps) => {
         {filteredTroves.map((trove) => (
           <div
             key={trove.id}
-            className="p-4 rounded-lg bg-card/30 border border-card-border/40"
+            className="p-4 rounded-xl bg-muted/20 border border-card-border/60"
           >
             <div className="flex items-start justify-between mb-3 gap-3">
               <div className="flex flex-col gap-2">
@@ -503,6 +562,6 @@ export const AllTroves = ({ troves, isLoading }: AllTrovesProps) => {
           </div>
         )}
       </div>
-    </Card>
+    </Wrapper>
   );
 };
