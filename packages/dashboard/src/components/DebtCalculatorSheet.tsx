@@ -331,7 +331,7 @@ export const DebtCalculatorSheet = ({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="h-full w-full overflow-y-auto sm:max-w-3xl"
+        className="flex h-full w-full flex-col gap-4 overflow-y-auto sm:max-w-3xl"
         enableSwipeClose
         onSwipeClose={() => onOpenChange(false)}
       >

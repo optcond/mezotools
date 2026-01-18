@@ -24,7 +24,7 @@ export const AllTrovesSheet = ({
   <Sheet open={open} onOpenChange={onOpenChange}>
     <SheetContent
       side="right"
-      className="flex h-full w-full flex-col gap-6 overflow-y-auto sm:max-w-5xl"
+      className="flex h-full w-full flex-col gap-4 overflow-y-auto sm:max-w-5xl"
       enableSwipeClose
       onSwipeClose={() => onOpenChange(false)}
     >

@@ -70,6 +70,7 @@ const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Con
       onTouchStart,
       onTouchMove,
       onTouchEnd,
+      onOpenAutoFocus,
       ...props
     },
     ref
@@ -143,6 +144,10 @@ const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Con
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
+          onOpenAutoFocus={(event) => {
+            event.preventDefault();
+            onOpenAutoFocus?.(event);
+          }}
           {...props}
         >
           {children}

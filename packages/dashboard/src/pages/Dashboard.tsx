@@ -505,7 +505,7 @@ const Dashboard = () => {
       <Sheet open={isCustomizeOpen} onOpenChange={setIsCustomizeOpen}>
         <SheetContent
           side="right"
-          className="flex h-full w-full flex-col gap-6 sm:max-w-md"
+          className="flex h-full w-full flex-col gap-4 overflow-y-auto sm:max-w-md"
           enableSwipeClose
           onSwipeClose={() => setIsCustomizeOpen(false)}
         >

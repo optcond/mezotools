@@ -224,6 +224,8 @@ export const AllTrovesTable = ({
   const Wrapper = variant === "sheet" ? "div" : Card;
   const wrapperClass =
     variant === "sheet" ? "space-y-6" : "glass-card p-6";
+  const tableScrollClass =
+    variant === "sheet" ? "" : "max-h-[560px] overflow-y-auto";
 
   if (isLoading) {
     return (
@@ -315,7 +317,7 @@ export const AllTrovesTable = ({
 
       {/* Desktop Table */}
       <div className="hidden md:block border border-card-border/60 rounded-xl overflow-hidden bg-card/20">
-        <div className="max-h-[560px] overflow-y-auto">
+        <div className={tableScrollClass}>
           <table className="w-full">
             <thead>
               <tr className="border-b border-card-border/60 bg-muted/20">
