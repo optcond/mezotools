@@ -89,7 +89,7 @@ export const BribesSheet = ({
 
   const parseBribes = (
     bribes: GaugeRow["bribes"],
-    epochStart: bigint
+    epochStart: bigint,
   ): GaugeIncentive["rewards"] => {
     if (!Array.isArray(bribes)) return [];
     const rewards: GaugeIncentive["rewards"] = [];
@@ -103,8 +103,8 @@ export const BribesSheet = ({
         typeof amountValue === "string"
           ? amountValue
           : typeof amountValue === "number"
-          ? Math.trunc(amountValue).toString()
-          : null;
+            ? Math.trunc(amountValue).toString()
+            : null;
       if (!token || amount === null) continue;
       rewards.push({
         token: token as `0x${string}`,
@@ -189,7 +189,7 @@ export const BribesSheet = ({
 
   const tokenSymbolMap = useMemo(() => {
     const entries: Array<[string, string]> = Object.entries(MezoTokens).map(
-      ([symbol, token]) => [token.address.toLowerCase(), symbol]
+      ([symbol, token]) => [token.address.toLowerCase(), symbol],
     );
     return new Map<string, string>(entries);
   }, []);
@@ -306,7 +306,7 @@ export const BribesSheet = ({
     }
 
     const candidates = gaugesWithTotals.filter(
-      (gauge) => gauge.annualBribeUsd > 0 && gauge.votesBtc >= 0
+      (gauge) => gauge.annualBribeUsd > 0 && gauge.votesBtc >= 0,
     );
     if (candidates.length === 0) {
       return new Map<
@@ -319,7 +319,7 @@ export const BribesSheet = ({
       ...candidates.map((gauge) => {
         const votes = Math.max(gauge.votesBtc, 1e-9);
         return gauge.annualBribeUsd / votes;
-      })
+      }),
     );
 
     if (!Number.isFinite(maxDerivative) || maxDerivative <= 0) {
@@ -640,14 +640,14 @@ export const BribesSheet = ({
                                         className="px-2 py-0.5 underline-offset-2 hover:underline"
                                       >
                                         {tokenSymbolMap.get(
-                                          reward.token.toLowerCase()
+                                          reward.token.toLowerCase(),
                                         ) ?? truncateAddress(reward.token)}
                                       </a>
                                     </Badge>
                                     <span className="font-mono text-foreground">
                                       {formatDecimalString(
                                         formatUnits(reward.amount, 18),
-                                        4
+                                        4,
                                       )}
                                     </span>
                                   </div>
@@ -710,18 +710,18 @@ export const BribesSheet = ({
                                         {formatDecimalString(
                                           (
                                             Number.parseFloat(
-                                              formatUnits(reward.amount, 18)
+                                              formatUnits(reward.amount, 18),
                                             ) * allocationShare
                                           ).toString(),
                                           reward.token.toLowerCase() ===
                                             MezoTokens.BTC.address.toLowerCase()
                                             ? 6
-                                            : 4
+                                            : 4,
                                         )}
                                       </span>
                                       <span className="text-muted-foreground">
                                         {tokenSymbolMap.get(
-                                          reward.token.toLowerCase()
+                                          reward.token.toLowerCase(),
                                         ) ?? truncateAddress(reward.token)}
                                       </span>
                                     </div>
@@ -798,7 +798,7 @@ export const BribesSheet = ({
                       key={gauge.gauge}
                       className="rounded-lg border border-card-border/40 bg-card/30 p-4"
                     >
-                      <div className="space-y-1">
+                      <div className="space-y-1 border-b border-card-border/60 pb-3">
                         <div className="font-semibold text-foreground">
                           {gauge.poolName ?? "Unknown pool"}
                         </div>
@@ -834,32 +834,41 @@ export const BribesSheet = ({
                               No active bribes
                             </span>
                           ) : (
-                            <div className="mt-1 flex flex-col gap-2 text-xs">
-                              {gauge.rewards.map((reward) => (
-                                <div
-                                  key={`${gauge.gauge}-mobile-${reward.token}`}
-                                  className="flex flex-wrap items-center gap-2"
-                                >
-                                  <Badge variant="outline" className="p-0">
-                                    <a
-                                      href={`https://explorer.mezo.org/address/${reward.token}`}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="px-2 py-0.5 underline-offset-2 hover:underline"
-                                    >
-                                      {tokenSymbolMap.get(
-                                        reward.token.toLowerCase()
-                                      ) ?? truncateAddress(reward.token)}
-                                    </a>
-                                  </Badge>
-                                  <span className="font-mono text-foreground">
-                                    {formatDecimalString(
-                                      formatUnits(reward.amount, 18),
-                                      4
-                                    )}
-                                  </span>
-                                </div>
-                              ))}
+                            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                              {gauge.rewards.map((reward, index) => {
+                                const label =
+                                  tokenSymbolMap.get(
+                                    reward.token.toLowerCase(),
+                                  ) ?? truncateAddress(reward.token);
+                                return (
+                                  <div
+                                    key={`${gauge.gauge}-mobile-${reward.token}`}
+                                    className="flex items-center gap-2"
+                                  >
+                                    <Badge variant="outline" className="p-0">
+                                      <a
+                                        href={`https://explorer.mezo.org/address/${reward.token}`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="px-2 py-0.5 underline-offset-2 hover:underline"
+                                      >
+                                        {label}
+                                      </a>
+                                    </Badge>
+                                    <span className="font-mono text-foreground">
+                                      {formatDecimalString(
+                                        formatUnits(reward.amount, 18),
+                                        4,
+                                      )}
+                                    </span>
+                                    {index < gauge.rewards.length - 1 ? (
+                                      <span className="text-muted-foreground">
+                                        •
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                );
+                              })}
                             </div>
                           )}
                         </div>
@@ -879,70 +888,84 @@ export const BribesSheet = ({
                         </div>
                       </div>
 
-                      <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
-                        <div>
-                          <span className="text-muted-foreground">
-                            Allocation:
-                          </span>{" "}
-                          <span className="font-semibold text-foreground">
-                            {allocationPercent !== null
-                              ? `${allocationPercent.toFixed(2)}%`
-                              : "—"}
-                          </span>
-                          <div className="text-xs text-muted-foreground">
-                            {allocationAmount !== null
-                              ? `${allocationAmount.toFixed(4)} veBTC`
-                              : "Best split"}
-                          </div>
+                      <div className="mt-3 rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3">
+                        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-600">
+                          Calculator
                         </div>
-                        <div>
-                          <span className="text-muted-foreground">
-                            New APR:
-                          </span>{" "}
-                          <span className="font-semibold text-foreground">
-                            {newApr !== null ? `${newApr.toFixed(2)}%` : "—"}
-                          </span>
-                        </div>
-                        <div className="sm:col-span-2">
-                          <span className="text-muted-foreground">
-                            Bribes received:
-                          </span>{" "}
-                          <span className="font-semibold text-foreground">
-                            {bribesReceivedUsd !== null
-                              ? `~$${formatUsd(bribesReceivedUsd)}`
-                              : "—"}
-                          </span>
-                          {allocationShare !== null &&
-                          gauge.rewards.length > 0 ? (
-                            <div className="mt-2 space-y-1 text-xs">
-                              {gauge.rewards.map((reward) => (
-                                <div
-                                  key={`${gauge.gauge}-mobile-received-${reward.token}`}
-                                  className="flex flex-wrap items-center gap-2"
-                                >
-                                  <span className="font-mono text-foreground">
-                                    {formatDecimalString(
-                                      (
-                                        Number.parseFloat(
-                                          formatUnits(reward.amount, 18)
-                                        ) * allocationShare
-                                      ).toString(),
-                                      reward.token.toLowerCase() ===
-                                        MezoTokens.BTC.address.toLowerCase()
-                                        ? 6
-                                        : 4
-                                    )}
-                                  </span>
-                                  <span className="text-muted-foreground">
-                                    {tokenSymbolMap.get(
-                                      reward.token.toLowerCase()
-                                    ) ?? truncateAddress(reward.token)}
-                                  </span>
-                                </div>
-                              ))}
+                        {!calculatorVotes ? (
+                          <div className="text-sm text-muted-foreground">—</div>
+                        ) : (
+                          <div className="grid gap-2 text-sm sm:grid-cols-2">
+                            <div>
+                              <span className="text-muted-foreground">
+                                Allocation:
+                              </span>{" "}
+                              <span className="font-semibold text-foreground">
+                                {allocationPercent !== null
+                                  ? `${allocationPercent.toFixed(2)}%`
+                                  : "—"}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                {" "}
+                                (
+                                {allocationAmount !== null
+                                  ? `${allocationAmount.toFixed(4)} veBTC`
+                                  : "Best split"}
+                                )
+                              </span>
                             </div>
-                          ) : null}
-                        </div>
+                            <div>
+                              <span className="text-muted-foreground">
+                                New APR:
+                              </span>{" "}
+                              <span className="font-semibold text-foreground">
+                                {newApr !== null
+                                  ? `${newApr.toFixed(2)}%`
+                                  : "—"}
+                              </span>
+                            </div>
+                            <div className="sm:col-span-2">
+                              <span className="text-muted-foreground">
+                                Bribes received:
+                              </span>{" "}
+                              <span className="font-semibold text-foreground">
+                                {bribesReceivedUsd !== null
+                                  ? `~$${formatUsd(bribesReceivedUsd)}`
+                                  : "—"}
+                              </span>
+                              {allocationShare !== null &&
+                              gauge.rewards.length > 0 ? (
+                                <div className="mt-2 space-y-1 text-xs">
+                                  {gauge.rewards.map((reward) => (
+                                    <div
+                                      key={`${gauge.gauge}-mobile-received-${reward.token}`}
+                                      className="flex flex-wrap items-center gap-2"
+                                    >
+                                      <span className="font-mono text-foreground">
+                                        {formatDecimalString(
+                                          (
+                                            Number.parseFloat(
+                                              formatUnits(reward.amount, 18),
+                                            ) * allocationShare
+                                          ).toString(),
+                                          reward.token.toLowerCase() ===
+                                            MezoTokens.BTC.address.toLowerCase()
+                                            ? 6
+                                            : 4,
+                                        )}
+                                      </span>
+                                      <span className="text-muted-foreground">
+                                        {tokenSymbolMap.get(
+                                          reward.token.toLowerCase(),
+                                        ) ?? truncateAddress(reward.token)}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : null}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   );

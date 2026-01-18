@@ -6,7 +6,13 @@ import {
   useState,
   type DragEvent,
 } from "react";
-import { Loader2, AlertTriangle, GripVertical } from "lucide-react";
+import {
+  Loader2,
+  AlertTriangle,
+  GripVertical,
+  ChevronUp,
+  ChevronDown,
+} from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 
 import { Header } from "@/components/Header";
@@ -332,6 +338,23 @@ const Dashboard = () => {
     });
   };
 
+  const moveWidgetByOffset = (key: DashboardWidgetKey, offset: number) => {
+    if (!offset) {
+      return;
+    }
+    setWidgetOrder((prev) => {
+      const fromIndex = prev.indexOf(key);
+      const toIndex = fromIndex + offset;
+      if (fromIndex === -1 || toIndex < 0 || toIndex >= prev.length) {
+        return prev;
+      }
+      const next = [...prev];
+      next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, key);
+      return next;
+    });
+  };
+
   const handleDragStart =
     (key: DashboardWidgetKey) => (event: DragEvent<HTMLDivElement>) => {
       event.dataTransfer.effectAllowed = "move";
@@ -513,15 +536,18 @@ const Dashboard = () => {
             <SheetTitle>Customize dashboard</SheetTitle>
             <SheetDescription>
               Pick the widgets you want to keep on screen and drag to reorder.
+              On mobile, use the arrows.
             </SheetDescription>
           </SheetHeader>
           <div className="space-y-4">
-            {widgetOrder.map((key) => {
+            {widgetOrder.map((key, index) => {
               const widget = dashboardWidgets.find((item) => item.key === key);
               if (!widget) {
                 return null;
               }
               const isDragging = draggingWidget === key;
+              const isFirst = index === 0;
+              const isLast = index === widgetOrder.length - 1;
               return (
                 <div
                   key={widget.key}
@@ -543,11 +569,35 @@ const Dashboard = () => {
                       {widget.label}
                     </Label>
                   </div>
-                  <Checkbox
-                    id={`widget-${widget.key}`}
-                    checked={widgetVisibility[widget.key]}
-                    onCheckedChange={() => toggleWidget(widget.key)}
-                  />
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1 sm:hidden">
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => moveWidgetByOffset(widget.key, -1)}
+                        disabled={isFirst}
+                        aria-label="Move widget up"
+                      >
+                        <ChevronUp className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => moveWidgetByOffset(widget.key, 1)}
+                        disabled={isLast}
+                        aria-label="Move widget down"
+                      >
+                        <ChevronDown className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <Checkbox
+                      id={`widget-${widget.key}`}
+                      checked={widgetVisibility[widget.key]}
+                      onCheckedChange={() => toggleWidget(widget.key)}
+                    />
+                  </div>
                 </div>
               );
             })}
