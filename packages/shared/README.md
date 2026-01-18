@@ -39,27 +39,6 @@ Below are focused examples you can mix and match. The imports can be shared; eac
 ### 1) Setup clients + fetcher wrapper
 
 ```ts
-import {
-  BridgeAssetFetcher,
-  BridgeChecker,
-  CowFiFetcher,
-  GaugesFetcher,
-  MezoChain,
-  MezoTokens,
-  TroveFetcher,
-  PriceFeedFetcher,
-  TroveFetcherWrapper,
-  RedemptionMaker,
-  createSupabase,
-  SupabaseRepository,
-} from "@mtools/shared";
-import { createPublicClient, http } from "viem";
-import { mainnet } from "viem/chains";
-import { TradingSdk } from "@cowprotocol/sdk-trading";
-import { ViemAdapter } from "@cowprotocol/sdk-viem-adapter";
-import { privateKeyToAccount } from "viem/accounts";
-import { SupportedChainId } from "@cowprotocol/cow-sdk";
-
 const client = createPublicClient({
   chain: MezoChain,
   transport: http(MezoChain.rpcUrls.default.http[0]),
@@ -136,11 +115,26 @@ const musdToUsdcQuote = await cowFi.getMUSDSellQuote();
 ### 7) Redemption maker
 
 ```ts
-const redemptionMaker = new RedemptionMaker(
-  client,
-  fetcherWrapper,
-  /* wallet client */
-);
+// You need a WalletClient to sign and send the redemption transaction.
+// In apps, this typically comes from wagmi or your wallet connector.
+const walletClient = /* createWalletClient(...) */;
+const redemptionMaker = new RedemptionMaker(client, fetcherWrapper, walletClient);
+
+// Step 1: ask HintHelpers for the best redemption hints.
+const hints = await redemptionMaker.getRedemptionHintsForAmount("250");
+
+// Step 2: optional simulation to estimate gas and validate hints.
+const simulation = await redemptionMaker.simulateRedemption(hints);
+
+// Step 3: execute the redemption (handles mUSD allowance).
+const result = await redemptionMaker.executeRedemption(hints);
+
+console.log({
+  btcTokenAddress: MezoTokens.BTC.address,
+  truncatedAmount: simulation.truncatedAmount.toString(),
+  gasEstimate: simulation.gasEstimate.toString(),
+  txHash: result.txHash,
+});
 ```
 
 ## Project layout
