@@ -26,13 +26,15 @@ describe("BridgeChecker", () => {
     const chunkSize = parseBigIntEnv(process.env.MEZO_CHUNK_SIZE) ?? 100n;
 
     const checker = new BridgeChecker(client, new BlockFetcher(client));
-    const results = await checker.getBridgeCallsInRange({
-      fromBlock: 6172178n,
-      toBlock: 6172178n,
+    const results = await checker.getBridgeTransfersInRange({
+      // fromBlock: 6172178n,
+      // toBlock: 6172178n,
+      fromBlock,
+      toBlock,
       chunkSize,
     });
 
-    results.forEach((r) => console.log(r.args));
+    results.forEach((r) => console.log(r));
     expect(Array.isArray(results)).toBe(true);
   }, 120_000);
 });

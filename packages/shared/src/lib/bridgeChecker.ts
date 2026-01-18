@@ -16,6 +16,18 @@ export type BridgeCallResult = {
   blockTimestamp: number;
 };
 
+export type BridgeTransfer = {
+  direction: "in" | "out";
+  sender: `0x${string}`;
+  receiver: `0x${string}`;
+  amount: bigint;
+  asset: `0x${string}`;
+  transactionHash: `0x${string}`;
+  blockNumber: bigint;
+  transactionIndex: number;
+  blockTimestamp: number;
+};
+
 export class BridgeChecker {
   private readonly abi = AssetsBridgeCallerAbi;
   private readonly contractAddress: `0x${string}`;
@@ -44,6 +56,69 @@ export class BridgeChecker {
     if (selector === this.bridgeSelector) return "bridge";
     if (selector === this.bridgeOutSelector) return "bridgeOut";
     return null;
+  }
+
+  private buildTransfers(params: {
+    functionName: BridgeFunctionName;
+    args: unknown;
+    txHash: `0x${string}`;
+    txFrom: `0x${string}`;
+    txIndex: number;
+    blockNumber: bigint;
+    blockTimestamp: number;
+  }): BridgeTransfer[] {
+    const {
+      functionName,
+      args,
+      txHash,
+      txFrom,
+      txIndex,
+      blockNumber,
+      blockTimestamp,
+    } = params;
+
+    if (functionName === "bridge") {
+      const [events] = args as [
+        Array<{
+          sequenceNumber: bigint;
+          recipient: `0x${string}`;
+          amount: bigint;
+          token: `0x${string}`;
+        }>
+      ];
+      return events.map((event) => ({
+        direction: "in",
+        sender: txFrom,
+        receiver: event.recipient,
+        amount: event.amount,
+        asset: event.token,
+        transactionHash: txHash,
+        blockNumber,
+        transactionIndex: txIndex,
+        blockTimestamp,
+      }));
+    }
+
+    const [token, amount, _chain, recipient] = args as [
+      `0x${string}`,
+      bigint,
+      number,
+      `0x${string}`
+    ];
+
+    return [
+      {
+        direction: "out",
+        sender: txFrom,
+        receiver: recipient,
+        amount,
+        asset: token,
+        transactionHash: txHash,
+        blockNumber,
+        transactionIndex: txIndex,
+        blockTimestamp,
+      },
+    ];
   }
 
   async getBridgeCallsInRange(options: {
@@ -115,5 +190,32 @@ export class BridgeChecker {
     });
 
     return results;
+  }
+
+  async getBridgeTransfersInRange(options: {
+    fromBlock: bigint;
+    toBlock: bigint;
+    chunkSize?: bigint;
+  }): Promise<BridgeTransfer[]> {
+    const calls = await this.getBridgeCallsInRange(options);
+    const transfers = calls.flatMap((call) =>
+      this.buildTransfers({
+        functionName: call.functionName,
+        args: call.args,
+        txHash: call.transactionHash,
+        txFrom: call.from,
+        txIndex: call.transactionIndex,
+        blockNumber: call.blockNumber,
+        blockTimestamp: call.blockTimestamp,
+      })
+    );
+
+    transfers.sort((a, b) => {
+      const blockDiff = a.blockNumber - b.blockNumber;
+      if (blockDiff !== 0n) return blockDiff > 0n ? 1 : -1;
+      return a.transactionIndex - b.transactionIndex;
+    });
+
+    return transfers;
   }
 }
