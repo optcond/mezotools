@@ -2,12 +2,13 @@ import { createPublicClient, http, PublicClient } from "viem";
 import { beforeAll, describe, expect, it } from "vitest";
 import { GaugesFetcher } from "./gaugesFetcher";
 import { MezoChain } from "../types";
+import { createMezoPublicClient } from "../testUtils/publicClient";
 
 const stringifyBigInt = (value: unknown) =>
   JSON.stringify(
     value,
     (_, item) => (typeof item === "bigint" ? item.toString() : item),
-    2
+    2,
   );
 
 describe("GaugesFetcher integration test", () => {
@@ -15,10 +16,7 @@ describe("GaugesFetcher integration test", () => {
   let fetcher: GaugesFetcher;
 
   beforeAll(async () => {
-    client = createPublicClient({
-      chain: MezoChain,
-      transport: http(MezoChain.rpcUrls.default.http[0]),
-    });
+    const client = createMezoPublicClient();
     fetcher = new GaugesFetcher(client);
   });
 

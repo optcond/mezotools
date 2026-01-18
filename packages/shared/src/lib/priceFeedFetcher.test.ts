@@ -7,19 +7,16 @@ import {
 } from "viem";
 import { beforeAll, describe, expect, it } from "vitest";
 import { PriceFeedFetcher } from "./priceFeedFetcher";
-import { MezoChain } from "../types";
+import { createMezoPublicClient } from "../testUtils/publicClient";
 
 describe(`Price Feed tBTC Oracle`, () => {
   let client: PublicClient;
   let fetcher: PriceFeedFetcher;
   beforeAll(async () => {
-    client = createPublicClient({
-      chain: MezoChain as Chain,
-      transport: http(),
-    });
+    client = createMezoPublicClient();
     fetcher = new PriceFeedFetcher(
       client,
-      "0xc5aC5A8892230E0A3e1c473881A2de7353fFcA88"
+      "0xc5aC5A8892230E0A3e1c473881A2de7353fFcA88",
     );
   });
 

@@ -122,6 +122,7 @@ export const AppContracts: Record<string, `0x${string}`> = {
 };
 
 export type MezoProtocolContracts = {
+  assetsBridgeCaller: `0x${string}`;
   troveManager: `0x${string}`;
   borrowerOperations: `0x${string}`;
   hintHelpers: `0x${string}`;
@@ -135,6 +136,7 @@ export type MezoProtocolContracts = {
 
 export const MezoContractsByChainId: Record<number, MezoProtocolContracts> = {
   [MezoChain.id]: {
+    assetsBridgeCaller: `0x7B7C000000000000000000000000000000000012`,
     troveManager: `0x94AfB503dBca74aC3E4929BACEeDfCe19B93c193`,
     borrowerOperations: `0x44b1bac67dDA612a41a58AAf779143B181dEe031`,
     hintHelpers: `0xD267b3bE2514375A075fd03C3D9CBa6b95317DC3`,
@@ -146,6 +148,7 @@ export const MezoContractsByChainId: Record<number, MezoProtocolContracts> = {
     tokens: MezoTokens,
   },
   [MezoChainTestnet.id]: {
+    assetsBridgeCaller: `0x0`,
     troveManager: `0xE47c80e8c23f6B4A1aE41c34837a0599D5D16bb0`,
     borrowerOperations: `0xCdF7028ceAB81fA0C6971208e83fa7872994beE5`,
     hintHelpers: `0x4e4cBA3779d56386ED43631b4dCD6d8EacEcBCF6`,

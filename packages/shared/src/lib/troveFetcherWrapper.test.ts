@@ -11,6 +11,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { TroveFetcher } from "./troveFetcher";
 import { PriceFeedFetcher } from "./priceFeedFetcher";
 import { TroveFetcherWrapper } from "./troveFetcherWrapper";
+import { createMezoPublicClient } from "../testUtils/publicClient";
 
 describe(`TroveManager operations`, () => {
   let client: PublicClient;
@@ -18,10 +19,7 @@ describe(`TroveManager operations`, () => {
   let priceFeed: PriceFeedFetcher;
   let wrapper: TroveFetcherWrapper;
   beforeAll(async () => {
-    client = createPublicClient({
-      chain: MezoChain as Chain,
-      transport: http(),
-    });
+    client = createMezoPublicClient();
     fetcher = new TroveFetcher(client);
     const priceFeedAddress = await fetcher.getPriceFeedAddress();
     priceFeed = new PriceFeedFetcher(client, priceFeedAddress);
