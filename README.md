@@ -19,14 +19,14 @@ Each package exposes its own scripts, but the root `pnpm` installation step only
 
 ### `@mtools/dashboard`
 
-- Vite + React single-page app that visualizes the MUSD protocol state (troves, liquidations, bridge balances, wallet health) pulled from Supabase.
+- Vite + React single-page app that visualizes the MUSD protocol state (troves, liquidations, bridge balances/transfers, wallet health) pulled from Supabase.
 - Offers operator tooling such as risk projections, quick redemption/bridge dialogs, and live monitoring powered by TanStack Query and Supabase subscriptions.
 - Develop with `pnpm --filter @mtools/dashboard dev` and build via `pnpm --filter @mtools/dashboard build`. Preview the production bundle using `pnpm --filter @mtools/dashboard preview`.
 
 ### `@mtools/indexer`
 
 - Backend cron that ingests on-chain Mezo data plus CowSwap pricing and persists it in Supabase so downstream tools always have fresh state.
-- Handles trove snapshots, bridge balances, price feeds, liquidation/redemption history, and stores cursor metadata in `indexer_state`.
+- Handles trove snapshots, bridge balances and transfers, price feeds, liquidation/redemption history, and stores cursor metadata in `indexer_state`.
 - Run continuously with `pnpm --filter @mtools/indexer dev`, ship compiled code through `pnpm --filter @mtools/indexer build && pnpm --filter @mtools/indexer start`, or containerize via the included `Dockerfile` + `Makefile`.
 
 ### `@mtools/redeemer`

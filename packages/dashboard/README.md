@@ -1,6 +1,6 @@
 # @mtools/dashboard
 
-The dashboard is a Vite + React single-page app that tracks Mezo's mUSD protocol health. It visualizes the data that the indexer writes into Supabase (current troves, liquidations, redemptions, price-feed trends, bridge balances, and wallet-level stats) while giving operators quick actions such as opening the redeemer or debt calculator from the same surface.
+The dashboard is a Vite + React single-page app that tracks Mezo's mUSD protocol health. It visualizes the data that the indexer writes into Supabase (current troves, liquidations, redemptions, price-feed trends, bridge balances and transfers, and wallet-level stats) while giving operators quick actions such as opening the redeemer or debt calculator from the same surface.
 
 ## Highlights
 
@@ -44,8 +44,8 @@ All variables are consumed inside `src/integrations/supabase/client.ts`. The cli
 
 ```
 Supabase tables
-  -> troves, liquidations, redemptions, bridge_assets, system_metrics_daily,
-     indexer_state
+  -> troves, liquidations, redemptions, bridge_assets, bridge_transfers,
+     system_metrics_daily, indexer_state
       |
       v
 useMonitorData hook (TanStack Query + typed Supabase client)

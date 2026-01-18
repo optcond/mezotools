@@ -1,12 +1,12 @@
 # @mtools/indexer
 
-The indexer is the backend cron that keeps Supabase in sync with on-chain Mezo state and CowSwap pricing. Every run pulls the latest troves, bridge balances, liquidations, redemptions, and price feed snapshots, then persists that data so the dashboard and other tools stay current.
+The indexer is the backend cron that keeps Supabase in sync with on-chain Mezo state and CowSwap pricing. Every run pulls the latest troves, bridge balances, bridge transfers, liquidations, redemptions, and price feed snapshots, then persists that data so the dashboard and other tools stay current.
 
 ## Responsibilities
 
-- **State ingestion** - connects to Mezo RPC (WebSocket or HTTP) plus Ethereum mainnet to fetch trove data, Bridge assets, and block numbers.
+- **State ingestion** - connects to Mezo RPC (WebSocket or HTTP) plus Ethereum mainnet to fetch trove data, bridge assets, bridge transfers, and block numbers.
 - **Risk + history data** - snapshots system metrics, 4h averages, and BTC price feeds for charting.
-- **Activity tracking** - stores the most recent liquidations and redemptions (including CowFi swap quotes) and tracks the last processed block inside `indexer_state`.
+- **Activity tracking** - stores the most recent bridge transfers, liquidations, and redemptions (including CowFi swap quotes) and tracks the last processed block inside `indexer_state`.
 - **Shared tooling** - reuses the fetchers, adapters, and Supabase repository exported from `@mtools/shared`, so all protocol constants live in one place.
 
 ## Quick start
@@ -68,7 +68,7 @@ ENV_FILE=.env make run IMAGE_NAME=mezo-indexer
 ## Data written to Supabase
 
 - `troves`, `liquidations`, `redemptions`
-- `bridge_assets`
+- `bridge_assets`, `bridge_transfers` (records include success/failed status for each call)
 - `system_metrics_daily` + intra-day snapshots (used for price charts and wallet stats)
 - `price_feeds`
 - `indexer_state` (stores the latest processed block)

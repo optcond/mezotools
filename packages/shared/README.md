@@ -5,8 +5,8 @@ Shared is the TypeScript toolbox that every other package depends on. It central
 ## Exposed modules
 
 - **Network + types** - `MezoChain`, token metadata, trove / bridge / Supabase row types, and ABI exports.
-- **Fetchers** - `TroveFetcher`, `TroveFetcherWrapper`, `PriceFeedFetcher`, `BridgeAssetFetcher`, `CowFiFetcher`, `GaugesFetcher`.
-- **Supabase repository** - `createSupabase` and `SupabaseRepository` wrap inserts/updates for every table the indexer maintains.
+- **Fetchers** - `TroveFetcher`, `TroveFetcherWrapper`, `PriceFeedFetcher`, `BridgeAssetFetcher`, `BridgeChecker`, `CowFiFetcher`, `GaugesFetcher`.
+- **Supabase repository** - `createSupabase` and `SupabaseRepository` wrap inserts/updates for every table the indexer maintains, including bridge transfers.
 - **Execution helpers** - `RedemptionMaker` computes redemption hints, simulations, and transactions using the fetchers above.
 
 Everything is re-exported through `src/index.ts`, so consumers can simply import from `@mtools/shared`.
@@ -71,6 +71,8 @@ packages/shared
 |   |-- abi/                    # on-chain contract ABIs
 |   |-- lib/
 |   |   |-- bridgeAssetFetcher.ts
+|   |   |-- bridgeChecker.ts
+|   |   |-- blockFetcher.ts
 |   |   |-- cowFiFetcher.ts
 |   |   |-- gaugesFetcher.ts
 |   |   |-- priceFeedFetcher.ts
