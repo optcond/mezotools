@@ -224,7 +224,7 @@ export class Indexer {
     }
 
     /* Liquidations and redemptions */
-    await this._processLiqsAndRedemps(6170041, currentBlockNumber);
+    await this._processLiqsAndRedemps(lastKnownBlock, currentBlockNumber);
 
     /* 4H average charts data */
     await this._process4hHistory(
@@ -233,7 +233,7 @@ export class Indexer {
       musdToUsdcPrice,
     );
 
-    await this._processBridgeTransfers(6170041, currentBlockNumber);
+    await this._processBridgeTransfers(lastKnownBlock, currentBlockNumber);
 
     await this.deps.repository.updateIndexerState(currentBlockNumber);
     console.log(`Recorded indexer state to block ${currentBlockNumber}`);
