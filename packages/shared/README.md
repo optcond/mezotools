@@ -69,7 +69,7 @@ const ethClient = createPublicClient({ chain: mainnet, transport: http() });
 const troveFetcher = new TroveFetcher(client);
 const priceFeedFetcher = new PriceFeedFetcher(
   client,
-  await troveFetcher.getPriceFeedAddress()
+  await troveFetcher.getPriceFeedAddress(),
 );
 const fetcherWrapper = new TroveFetcherWrapper(troveFetcher, priceFeedFetcher);
 ```
@@ -127,7 +127,7 @@ const adapter = new ViemAdapter({ provider: ethClient, signer: account });
 const cowFiTradingSDK = new TradingSdk(
   { appCode: "mezo-tools", chainId: SupportedChainId.MAINNET },
   {},
-  adapter
+  adapter,
 );
 const cowFi = new CowFiFetcher(cowFiTradingSDK);
 const musdToUsdcQuote = await cowFi.getMUSDSellQuote();
@@ -141,8 +141,6 @@ const redemptionMaker = new RedemptionMaker(
   fetcherWrapper,
   /* wallet client */
 );
-const btcTokenAddress = MezoTokens.BTC.address;
-console.log({ btcTokenAddress });
 ```
 
 ## Project layout
