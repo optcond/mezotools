@@ -74,6 +74,14 @@ const truncateHash = (hash: string) => {
   return `${hash.slice(0, 6)}…${hash.slice(-4)}`;
 };
 
+const formatTimestamp = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "—";
+  }
+  return date.toLocaleString();
+};
+
 export const BridgedAssetsSheet = ({
   open,
   onOpenChange,
@@ -171,9 +179,9 @@ export const BridgedAssetsSheet = ({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
+        <SheetContent
         side="right"
-        className="flex h-full w-full flex-col gap-4 overflow-y-auto sm:max-w-3xl"
+        className="flex h-full w-full flex-col gap-4 overflow-y-auto sm:max-w-5xl"
         enableSwipeClose
         onSwipeClose={() => onOpenChange(false)}
         onOpenAutoFocus={(event) => event.preventDefault()}
@@ -402,6 +410,7 @@ export const BridgedAssetsSheet = ({
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead>Time</TableHead>
                         <TableHead>Tx</TableHead>
                         <TableHead>Direction</TableHead>
                         <TableHead>Status</TableHead>
@@ -424,6 +433,9 @@ export const BridgedAssetsSheet = ({
                         const receiverIsZero = isZeroAddress(transfer.receiver);
                         return (
                           <TableRow key={transfer.id}>
+                            <TableCell className="text-xs text-muted-foreground">
+                              {formatTimestamp(transfer.block_timestamp)}
+                            </TableCell>
                             <TableCell>
                               <a
                                 href={`https://explorer.mezo.org/tx/${transfer.tx_hash}`}
@@ -477,7 +489,13 @@ export const BridgedAssetsSheet = ({
                               )}
                             </TableCell>
                             <TableCell className="font-mono text-xs">
-                              {receiverIsZero ? (
+                              {transfer.direction === "out" &&
+                              transfer.sender.toLowerCase() ===
+                                transfer.receiver.toLowerCase() ? (
+                                <span className="text-xs text-muted-foreground">
+                                  self
+                                </span>
+                              ) : receiverIsZero ? (
                                 <span className="text-xs text-muted-foreground">
                                   Mezo
                                 </span>
@@ -562,6 +580,12 @@ export const BridgedAssetsSheet = ({
                         </div>
                         <div className="mt-3 grid gap-2 text-xs text-muted-foreground">
                           <div className="flex items-center justify-between gap-2">
+                            <span>Time</span>
+                            <span className="text-foreground">
+                              {formatTimestamp(transfer.block_timestamp)}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between gap-2">
                             <span>Sender</span>
                             {senderIsZero ? (
                               <span className="text-xs text-muted-foreground">
@@ -578,9 +602,15 @@ export const BridgedAssetsSheet = ({
                               </a>
                             )}
                           </div>
-                          <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center justify-between gap-2">
                             <span>Receiver</span>
-                            {receiverIsZero ? (
+                            {transfer.direction === "out" &&
+                            transfer.sender.toLowerCase() ===
+                              transfer.receiver.toLowerCase() ? (
+                              <span className="text-xs text-muted-foreground">
+                                self
+                              </span>
+                            ) : receiverIsZero ? (
                               <span className="text-xs text-muted-foreground">
                                 Mezo
                               </span>
