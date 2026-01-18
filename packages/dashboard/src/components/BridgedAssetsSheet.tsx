@@ -232,55 +232,108 @@ export const BridgedAssetsSheet = ({
               after the next sync.
             </div>
           ) : (
-            <div className="rounded-xl border border-card-border/60">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Token</TableHead>
-                    <TableHead>Balance</TableHead>
-                    <TableHead>Mezo</TableHead>
-                    <TableHead>Ethereum</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {sortedAssets.map((asset) => (
-                    <TableRow key={asset.token_symbol}>
-                      <TableCell className="font-medium">
+            <>
+              <div className="rounded-xl border border-card-border/60 hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Token</TableHead>
+                      <TableHead>Balance</TableHead>
+                      <TableHead>Mezo</TableHead>
+                      <TableHead>Ethereum</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {sortedAssets.map((asset) => (
+                      <TableRow key={asset.token_symbol}>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            <span>{asset.token_name}</span>
+                            <Badge variant="outline" className="text-[10px]">
+                              {asset.ethereum_symbol}
+                            </Badge>
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-mono text-sm text-primary">
+                          {formatBalance(asset.balance_formatted)}
+                        </TableCell>
+                        <TableCell>
+                          <a
+                            href={`https://explorer.mezo.org/token/${asset.mezo_address}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="font-mono text-xs text-foreground underline-offset-2 hover:underline"
+                          >
+                            {truncateAddress(asset.mezo_address)}
+                          </a>
+                        </TableCell>
+                        <TableCell>
+                          <a
+                            href={`https://etherscan.io/token/${asset.ethereum_address}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="font-mono text-xs text-foreground underline-offset-2 hover:underline"
+                          >
+                            {truncateAddress(asset.ethereum_address)}
+                          </a>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              <div className="space-y-3 md:hidden">
+                {sortedAssets.map((asset) => (
+                  <div
+                    key={asset.token_symbol}
+                    className="rounded-xl border border-card-border/60 bg-muted/20 p-4"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-2">
                         <div className="flex items-center gap-2">
-                          <span>{asset.token_name}</span>
+                          <span className="font-semibold">
+                            {asset.token_name}
+                          </span>
                           <Badge variant="outline" className="text-[10px]">
                             {asset.ethereum_symbol}
                           </Badge>
                         </div>
-                      </TableCell>
-                      <TableCell className="font-mono text-sm text-primary">
-                        {formatBalance(asset.balance_formatted)}
-                      </TableCell>
-                      <TableCell>
+                        <div className="text-xs text-muted-foreground">
+                          Balance
+                        </div>
+                        <div className="font-mono text-lg text-primary">
+                          {formatBalance(asset.balance_formatted)}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-3 grid gap-2 text-xs text-muted-foreground">
+                      <div className="flex items-center justify-between gap-2">
+                        <span>Mezo</span>
                         <a
                           href={`https://explorer.mezo.org/token/${asset.mezo_address}`}
                           target="_blank"
                           rel="noreferrer"
-                          className="font-mono text-xs text-foreground underline-offset-2 hover:underline"
+                          className="font-mono text-foreground underline-offset-2 hover:underline"
                         >
                           {truncateAddress(asset.mezo_address)}
                         </a>
-                      </TableCell>
-                      <TableCell>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span>Ethereum</span>
                         <a
                           href={`https://etherscan.io/token/${asset.ethereum_address}`}
                           target="_blank"
                           rel="noreferrer"
-                          className="font-mono text-xs text-foreground underline-offset-2 hover:underline"
+                          className="font-mono text-foreground underline-offset-2 hover:underline"
                         >
                           {truncateAddress(asset.ethereum_address)}
                         </a>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
 
           <div className="space-y-3 pb-4">
@@ -344,69 +397,172 @@ export const BridgedAssetsSheet = ({
                 No transfers matching the selected filters.
               </div>
             ) : (
-              <div className="rounded-xl border border-card-border/60">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Tx</TableHead>
-                      <TableHead>Direction</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Sender</TableHead>
-                      <TableHead>Receiver</TableHead>
-                      <TableHead className="text-right">Amount</TableHead>
-                      <TableHead>Token</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredTransfers.map((transfer) => {
-                      const tokenMeta =
-                        transfer.direction === "in"
-                          ? ethTokenMap.get(transfer.asset.toLowerCase())
-                          : tokenMap.get(transfer.asset.toLowerCase());
-                      const tokenSymbol =
-                        tokenMeta?.symbol ?? truncateAddress(transfer.asset);
-                      const decimals = tokenMeta?.decimals ?? 18;
-                      const senderIsZero = isZeroAddress(transfer.sender);
-                      const receiverIsZero = isZeroAddress(transfer.receiver);
-                      return (
-                        <TableRow key={transfer.id}>
-                          <TableCell>
-                            <a
-                              href={`https://explorer.mezo.org/tx/${transfer.tx_hash}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="font-mono underline-offset-2 hover:underline"
-                            >
-                              {truncateHash(transfer.tx_hash)}
-                            </a>
-                          </TableCell>
-                          <TableCell>
-                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-foreground">
-                              {transfer.direction === "in" ? (
-                                <>
-                                  <ArrowDownLeft className="h-3 w-3 text-emerald-500" />
-                                  in
-                                </>
+              <>
+                <div className="rounded-xl border border-card-border/60 hidden md:block">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Tx</TableHead>
+                        <TableHead>Direction</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Sender</TableHead>
+                        <TableHead>Receiver</TableHead>
+                        <TableHead className="text-right">Amount</TableHead>
+                        <TableHead>Token</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredTransfers.map((transfer) => {
+                        const tokenMeta =
+                          transfer.direction === "in"
+                            ? ethTokenMap.get(transfer.asset.toLowerCase())
+                            : tokenMap.get(transfer.asset.toLowerCase());
+                        const tokenSymbol =
+                          tokenMeta?.symbol ?? truncateAddress(transfer.asset);
+                        const decimals = tokenMeta?.decimals ?? 18;
+                        const senderIsZero = isZeroAddress(transfer.sender);
+                        const receiverIsZero = isZeroAddress(transfer.receiver);
+                        return (
+                          <TableRow key={transfer.id}>
+                            <TableCell>
+                              <a
+                                href={`https://explorer.mezo.org/tx/${transfer.tx_hash}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="font-mono underline-offset-2 hover:underline"
+                              >
+                                {truncateHash(transfer.tx_hash)}
+                              </a>
+                            </TableCell>
+                            <TableCell>
+                              <span className="inline-flex items-center gap-1 text-xs font-semibold text-foreground">
+                                {transfer.direction === "in" ? (
+                                  <>
+                                    <ArrowDownLeft className="h-3 w-3 text-emerald-500" />
+                                    in
+                                  </>
+                                ) : (
+                                  <>
+                                    <ArrowUpRight className="h-3 w-3 text-rose-500" />
+                                    out
+                                  </>
+                                )}
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              <span
+                                className={
+                                  transfer.tx_status === "success"
+                                    ? "text-xs font-semibold text-emerald-500"
+                                    : "text-xs font-semibold text-rose-500"
+                                }
+                              >
+                                {transfer.tx_status}
+                              </span>
+                            </TableCell>
+                            <TableCell className="font-mono text-xs">
+                              {senderIsZero ? (
+                                <span className="text-xs text-muted-foreground">
+                                  Mezo
+                                </span>
                               ) : (
-                                <>
-                                  <ArrowUpRight className="h-3 w-3 text-rose-500" />
-                                  out
-                                </>
+                                <a
+                                  href={`https://explorer.mezo.org/address/${transfer.sender}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="underline-offset-2 hover:underline"
+                                >
+                                  {truncateAddress(transfer.sender)}
+                                </a>
                               )}
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            <span
-                              className={
-                                transfer.tx_status === "success"
-                                  ? "text-xs font-semibold text-emerald-500"
-                                  : "text-xs font-semibold text-rose-500"
-                              }
-                            >
-                              {transfer.tx_status}
-                            </span>
-                          </TableCell>
-                          <TableCell className="font-mono text-xs">
+                            </TableCell>
+                            <TableCell className="font-mono text-xs">
+                              {receiverIsZero ? (
+                                <span className="text-xs text-muted-foreground">
+                                  Mezo
+                                </span>
+                              ) : (
+                                <a
+                                  href={`https://explorer.mezo.org/address/${transfer.receiver}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="underline-offset-2 hover:underline"
+                                >
+                                  {truncateAddress(transfer.receiver)}
+                                </a>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right font-mono text-xs text-emerald-500">
+                              {formatTokenAmount(transfer.amount, decimals)}
+                            </TableCell>
+                            <TableCell className="text-xs">
+                              {tokenSymbol}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+                <div className="space-y-3 md:hidden">
+                  {filteredTransfers.map((transfer) => {
+                    const tokenMeta =
+                      transfer.direction === "in"
+                        ? ethTokenMap.get(transfer.asset.toLowerCase())
+                        : tokenMap.get(transfer.asset.toLowerCase());
+                    const tokenSymbol =
+                      tokenMeta?.symbol ?? truncateAddress(transfer.asset);
+                    const decimals = tokenMeta?.decimals ?? 18;
+                    const senderIsZero = isZeroAddress(transfer.sender);
+                    const receiverIsZero = isZeroAddress(transfer.receiver);
+                    return (
+                      <div
+                        key={transfer.id}
+                        className="rounded-xl border border-card-border/60 bg-muted/20 p-4"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <a
+                            href={`https://explorer.mezo.org/tx/${transfer.tx_hash}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="font-mono text-xs underline-offset-2 hover:underline"
+                          >
+                            {truncateHash(transfer.tx_hash)}
+                          </a>
+                          <span className="inline-flex items-center gap-1 text-xs font-semibold text-foreground">
+                            {transfer.direction === "in" ? (
+                              <>
+                                <ArrowDownLeft className="h-3 w-3 text-emerald-500" />
+                                in
+                              </>
+                            ) : (
+                              <>
+                                <ArrowUpRight className="h-3 w-3 text-rose-500" />
+                                out
+                              </>
+                            )}
+                          </span>
+                        </div>
+                        <div className="mt-2 flex items-center justify-between text-xs">
+                          <span
+                            className={
+                              transfer.tx_status === "success"
+                                ? "font-semibold text-emerald-500"
+                                : "font-semibold text-rose-500"
+                            }
+                          >
+                            {transfer.tx_status}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {tokenSymbol}
+                          </span>
+                        </div>
+                        <div className="mt-3 text-right font-mono text-sm text-emerald-500">
+                          {formatTokenAmount(transfer.amount, decimals)}
+                        </div>
+                        <div className="mt-3 grid gap-2 text-xs text-muted-foreground">
+                          <div className="flex items-center justify-between gap-2">
+                            <span>Sender</span>
                             {senderIsZero ? (
                               <span className="text-xs text-muted-foreground">
                                 Mezo
@@ -416,13 +572,14 @@ export const BridgedAssetsSheet = ({
                                 href={`https://explorer.mezo.org/address/${transfer.sender}`}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="underline-offset-2 hover:underline"
+                                className="font-mono text-foreground underline-offset-2 hover:underline"
                               >
                                 {truncateAddress(transfer.sender)}
                               </a>
                             )}
-                          </TableCell>
-                          <TableCell className="font-mono text-xs">
+                          </div>
+                          <div className="flex items-center justify-between gap-2">
+                            <span>Receiver</span>
                             {receiverIsZero ? (
                               <span className="text-xs text-muted-foreground">
                                 Mezo
@@ -432,22 +589,18 @@ export const BridgedAssetsSheet = ({
                                 href={`https://explorer.mezo.org/address/${transfer.receiver}`}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="underline-offset-2 hover:underline"
+                                className="font-mono text-foreground underline-offset-2 hover:underline"
                               >
                                 {truncateAddress(transfer.receiver)}
                               </a>
                             )}
-                          </TableCell>
-                          <TableCell className="text-right font-mono text-xs text-emerald-500">
-                            {formatTokenAmount(transfer.amount, decimals)}
-                          </TableCell>
-                          <TableCell className="text-xs">{tokenSymbol}</TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
             )}
           </div>
         </div>
