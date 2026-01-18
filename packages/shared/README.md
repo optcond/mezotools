@@ -4,9 +4,9 @@ Shared is the TypeScript toolbox that every other package depends on. It central
 
 ## Exposed modules
 
-- **Network + types** - `MezoChain`, token metadata, trove / bridge / Supabase row types, and ABI exports.
-- **Fetchers** - `TroveFetcher`, `TroveFetcherWrapper`, `PriceFeedFetcher`, `BridgeAssetFetcher`, `BridgeChecker`, `CowFiFetcher`, `GaugesFetcher`.
-- **Supabase repository** - `createSupabase` and `SupabaseRepository` wrap inserts/updates for every table the indexer maintains, including bridge transfers.
+- **Network + types** - `MezoChain`, `MezoChainTestnet`, token metadata (`MezoTokens`, `EthTokens`), trove / bridge / Supabase row types, and ABI exports.
+- **Fetchers** - `TroveFetcher`, `TroveFetcherWrapper`, `PriceFeedFetcher`, `BridgeAssetFetcher`, `BridgeChecker`, `BlockFetcher`, `CowFiFetcher`, `GaugesFetcher`.
+- **Supabase repository** - `createSupabase` and `SupabaseRepository` wrap inserts/updates for every table the indexer maintains, including bridge transfers and gauge state.
 - **Execution helpers** - `RedemptionMaker` computes redemption hints, simulations, and transactions using the fetchers above.
 
 Everything is re-exported through `src/index.ts`, so consumers can simply import from `@mtools/shared`.
@@ -26,7 +26,7 @@ pnpm --filter @mtools/shared build
 
 ### Tests
 
-The package uses Vitest. Suites currently cover the fetchers and Supabase repository helpers.
+The package uses Vitest. Suites currently cover the fetchers and Supabase repository helpers. Most tests are integration-style and expect working RPC/Supabase credentials.
 
 ```bash
 pnpm --filter @mtools/shared test
@@ -34,7 +34,7 @@ pnpm --filter @mtools/shared test
 
 ## Usage examples
 
-Below are focused examples you can mix and match. The imports can be shared.
+Below are focused examples you can mix and match. The imports can be shared; each block is otherwise self-contained.
 
 ### 1) Setup clients + fetcher wrapper
 
@@ -141,14 +141,8 @@ const redemptionMaker = new RedemptionMaker(
   fetcherWrapper,
   /* wallet client */
 );
-
-console.log({
-  btcToken: MezoTokens.BTC.address,
-  incentivesCount: incentives.length,
-  totalVotes,
-  totalVeSupply,
-  musdToUsdcQuote,
-});
+const btcTokenAddress = MezoTokens.BTC.address;
+console.log({ btcTokenAddress });
 ```
 
 ## Project layout
