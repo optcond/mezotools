@@ -21,6 +21,7 @@ import { BribesSheet } from "@/components/BribesSheet";
 // import { SwapDialog } from "@/components/SwapDialog";
 import { AllTrovesPreview } from "@/components/AllTrovesPreview";
 import { AllTrovesSheet } from "@/components/AllTrovesSheet";
+import { LatestActivitySheet } from "@/components/LatestActivitySheet";
 import { CustomizeSheet } from "@/components/CustomizeSheet";
 import { useMonitorData } from "@/hooks/useMonitorData";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -198,6 +199,7 @@ const Dashboard = () => {
     sheetParam === "redemption" ||
     sheetParam === "bribes" ||
     sheetParam === "all-troves" ||
+    sheetParam === "latest-activity" ||
     sheetParam === "customize"
       ? sheetParam
       : null;
@@ -434,6 +436,7 @@ const Dashboard = () => {
           liquidations={liquidations}
           redemptions={redemptions}
           isLoading={isLoading}
+          onOpenFullTable={() => setSheetParam("latest-activity")}
         />
       </Suspense>
     ),
@@ -534,6 +537,13 @@ const Dashboard = () => {
         open={activeSheet === "all-troves"}
         onOpenChange={handleSheetOpenChange("all-troves")}
         troves={troves}
+        isLoading={isLoading}
+      />
+      <LatestActivitySheet
+        open={activeSheet === "latest-activity"}
+        onOpenChange={handleSheetOpenChange("latest-activity")}
+        liquidations={liquidations}
+        redemptions={redemptions}
         isLoading={isLoading}
       />
       <CustomizeSheet

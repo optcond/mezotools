@@ -15,6 +15,15 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { formatNumber } from "@/lib/formatNumber";
+import { TableCard, TableShell } from "@/components/TableShell";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 interface Trove {
   id: string;
@@ -47,6 +56,8 @@ type SortField =
   | "principal_debt"
   | "collaterization_ratio";
 type SortOrder = "asc" | "desc";
+
+const riskBadgeClass = "h-5 px-2 text-[10px] font-semibold uppercase";
 
 const truncateAddress = (address: string) => {
   if (address.length <= 12) return address;
@@ -135,11 +146,27 @@ export const AllTrovesTable = ({
   };
 
   const getCrBadge = (cr: number) => {
-    if (cr < 1.2) return <Badge variant="destructive">Critical</Badge>;
-    if (cr < 1.6) return <Badge className="bg-high text-white">High</Badge>;
+    if (cr < 1.2) {
+      return (
+        <Badge variant="destructive" className={riskBadgeClass}>
+          Critical
+        </Badge>
+      );
+    }
+    if (cr < 1.6) {
+      return (
+        <Badge className={`${riskBadgeClass} bg-high text-white`}>High</Badge>
+      );
+    }
     if (cr < 2.0)
-      return <Badge className="bg-elevated text-black">Elevated</Badge>;
-    return <Badge className="bg-safe text-white">Safe</Badge>;
+      return (
+        <Badge className={`${riskBadgeClass} bg-elevated text-black`}>
+          Elevated
+        </Badge>
+      );
+    return (
+      <Badge className={`${riskBadgeClass} bg-safe text-white`}>Safe</Badge>
+    );
   };
 
   const handleSort = (field: SortField) => {
@@ -270,13 +297,14 @@ export const AllTrovesTable = ({
                   placeholder="Search owner address..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9"
+                  className="h-8 pl-9 text-xs"
                 />
               </div>
               <Button
                 onClick={exportCSV}
                 variant="outline"
-                className="w-full gap-2 sm:w-auto"
+                size="sm"
+                className="h-8 w-full gap-2 text-xs sm:w-auto"
               >
                 <Download className="h-4 w-4" />
                 CSV
@@ -300,9 +328,9 @@ export const AllTrovesTable = ({
                   variant={preset === p ? "default" : "outline"}
                   size="sm"
                   onClick={() => setPreset(p)}
-                  className="capitalize"
+                  className="h-8 capitalize text-xs"
                 >
-                  {p}
+                  {p === "medium" ? "elevated" : p}
                   {p === "watchlist" && watchlist.size > 0 && (
                     <Badge variant="secondary" className="ml-2">
                       {formatNumber(watchlist.size)}
@@ -316,62 +344,55 @@ export const AllTrovesTable = ({
       </div>
 
       {/* Desktop Table */}
-      <div className="hidden md:block border border-card-border/60 rounded-xl overflow-hidden bg-card/20">
+      <TableShell className="hidden md:block">
         <div className={tableScrollClass}>
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-card-border/60 bg-muted/20">
-                <th className="text-left p-3 text-sm font-semibold">
+          <Table>
+            <TableHeader className="bg-muted/20">
+              <TableRow>
+                <TableHead>
                   <button
                     onClick={() => handleSort("owner")}
-                    className="flex items-center gap-1 hover:text-primary transition-smooth"
+                    className="flex items-center gap-1 text-left text-xs font-medium text-muted-foreground transition-smooth hover:text-foreground"
                   >
                     Owner
                     <SortIcon field="owner" />
                   </button>
-                </th>
-                <th className="text-right p-3 text-sm font-semibold">
+                </TableHead>
+                <TableHead className="text-right">
                   <button
                     onClick={() => handleSort("collateral")}
-                    className="flex items-center gap-1 ml-auto hover:text-primary transition-smooth"
+                    className="ml-auto flex items-center gap-1 text-xs font-medium text-muted-foreground transition-smooth hover:text-foreground"
                   >
                     Collateral
                     <SortIcon field="collateral" />
                   </button>
-                </th>
-                <th className="text-right p-3 text-sm font-semibold">
+                </TableHead>
+                <TableHead className="text-right">
                   <button
                     onClick={() => handleSort("principal_debt")}
-                    className="flex items-center gap-1 ml-auto hover:text-primary transition-smooth"
+                    className="ml-auto flex items-center gap-1 text-xs font-medium text-muted-foreground transition-smooth hover:text-foreground"
                   >
                     Debt
                     <SortIcon field="principal_debt" />
                   </button>
-                </th>
-                <th className="text-right p-3 text-sm font-semibold">
-                  Interest
-                </th>
-                <th className="text-right p-3 text-sm font-semibold">
+                </TableHead>
+                <TableHead className="text-right">Interest</TableHead>
+                <TableHead className="text-right">
                   <button
                     onClick={() => handleSort("collaterization_ratio")}
-                    className="flex items-center gap-1 ml-auto hover:text-primary transition-smooth"
+                    className="ml-auto flex items-center gap-1 text-xs font-medium text-muted-foreground transition-smooth hover:text-foreground"
                   >
                     CR
                     <SortIcon field="collaterization_ratio" />
                   </button>
-                </th>
-                <th className="text-center p-3 text-sm font-semibold">
-                  Health
-                </th>
-              </tr>
-            </thead>
-            <tbody>
+                </TableHead>
+                <TableHead className="text-center">Health</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {filteredTroves.map((trove) => (
-                <tr
-                  key={trove.id}
-                  className="border-b border-card-border/40 hover:bg-muted/20 transition-smooth"
-                >
-                  <td className="p-3">
+                <TableRow key={trove.id}>
+                  <TableCell>
                     <div className="flex items-center gap-2">
                       <a
                         href={`https://explorer.mezo.org/address/${trove.owner}`}
@@ -410,30 +431,30 @@ export const AllTrovesTable = ({
                         </Button>
                       </div>
                     </div>
-                  </td>
-                  <td className="p-3 text-right font-medium">
+                  </TableCell>
+                  <TableCell className="text-right font-medium">
                     {formatNumber(trove.collateral, {
                       minimumFractionDigits: 4,
                       maximumFractionDigits: 4,
                     })}{" "}
                     BTC
-                  </td>
-                  <td className="p-3 text-right">
+                  </TableCell>
+                  <TableCell className="text-right">
                     {formatNumber(trove.principal_debt, {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
                     })}{" "}
                     MUSD
-                  </td>
-                  <td className="p-3 text-right text-sm text-muted-foreground">
+                  </TableCell>
+                  <TableCell className="text-right text-xs text-muted-foreground">
                     {formatNumber(trove.interest, {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
                     })}{" "}
                     MUSD
-                  </td>
-                  <td
-                    className={`p-3 text-right font-bold ${getCrColor(
+                  </TableCell>
+                  <TableCell
+                    className={`text-right font-semibold ${getCrColor(
                       trove.collaterization_ratio
                     )}`}
                   >
@@ -442,14 +463,14 @@ export const AllTrovesTable = ({
                       maximumFractionDigits: 1,
                     })}
                     %
-                  </td>
-                  <td className="p-3 text-center">
+                  </TableCell>
+                  <TableCell className="text-center">
                     {getCrBadge(trove.collaterization_ratio)}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
 
           {filteredTroves.length === 0 && (
             <div className="text-center py-12 text-muted-foreground">
@@ -457,15 +478,12 @@ export const AllTrovesTable = ({
             </div>
           )}
         </div>
-      </div>
+      </TableShell>
 
       {/* Mobile Cards */}
       <div className="space-y-3 md:hidden">
         {filteredTroves.map((trove) => (
-          <div
-            key={trove.id}
-            className="p-4 rounded-xl bg-muted/20 border border-card-border/60"
-          >
+          <TableCard key={trove.id}>
             <div className="flex items-start justify-between mb-3 gap-3">
               <div className="flex flex-col gap-2">
                 <div className="flex items-center gap-2">
@@ -555,7 +573,7 @@ export const AllTrovesTable = ({
                 </span>
               </div>
             </div>
-          </div>
+          </TableCard>
         ))}
 
         {filteredTroves.length === 0 && (

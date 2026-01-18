@@ -3,12 +3,23 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatNumber } from "@/lib/formatNumber";
+import { TableCard, TableShell } from "@/components/TableShell";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import type { Trove } from "@/hooks/useMonitorData";
 
 interface AllTrovesPreviewProps {
   troves: Trove[];
   onOpenFullTable?: () => void;
 }
+
+const riskBadgeClass = "h-5 px-2 text-[10px] font-semibold uppercase";
 
 const truncateAddress = (address: string) => {
   if (address.length <= 12) return address;
@@ -23,12 +34,24 @@ const getCrColor = (cr: number) => {
 };
 
 const getCrBadge = (cr: number) => {
-  if (cr < 1.2) return <Badge variant="destructive">Critical</Badge>;
-  if (cr < 1.6) return <Badge className="bg-high text-white">High</Badge>;
-  if (cr < 2.0) {
-    return <Badge className="bg-elevated text-black">Elevated</Badge>;
+  if (cr < 1.2) {
+    return (
+      <Badge variant="destructive" className={riskBadgeClass}>
+        Critical
+      </Badge>
+    );
   }
-  return <Badge className="bg-safe text-white">Safe</Badge>;
+  if (cr < 1.6) {
+    return <Badge className={`${riskBadgeClass} bg-high text-white`}>High</Badge>;
+  }
+  if (cr < 2.0) {
+    return (
+      <Badge className={`${riskBadgeClass} bg-elevated text-black`}>
+        Elevated
+      </Badge>
+    );
+  }
+  return <Badge className={`${riskBadgeClass} bg-safe text-white`}>Safe</Badge>;
 };
 
 export const AllTrovesPreview = ({
@@ -55,23 +78,20 @@ export const AllTrovesPreview = ({
           </div>
         ) : (
           <>
-            <div className="hidden md:block rounded-xl border border-card-border/60 overflow-hidden bg-card/20">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-card-border/60 bg-muted/20 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                    <th className="p-3 font-medium">Address</th>
-                    <th className="p-3 text-right font-medium">Collateral</th>
-                    <th className="p-3 text-right font-medium">Debt</th>
-                    <th className="p-3 text-right font-medium">CR</th>
-                  </tr>
-                </thead>
-                <tbody>
+            <TableShell className="hidden md:block">
+              <Table>
+                <TableHeader className="bg-muted/20">
+                  <TableRow>
+                    <TableHead>Address</TableHead>
+                    <TableHead className="text-right">Collateral</TableHead>
+                    <TableHead className="text-right">Debt</TableHead>
+                    <TableHead className="text-right">CR</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {riskiestTroves.map((trove) => (
-                    <tr
-                      key={trove.id}
-                      className="border-b border-card-border/40 last:border-b-0 hover:bg-muted/20"
-                    >
-                      <td className="p-3">
+                    <TableRow key={trove.id}>
+                      <TableCell>
                         <div className="flex items-center gap-2">
                           <a
                             href={`https://explorer.mezo.org/address/${trove.owner}`}
@@ -83,23 +103,23 @@ export const AllTrovesPreview = ({
                           </a>
                           {getCrBadge(trove.collaterization_ratio)}
                         </div>
-                      </td>
-                      <td className="p-3 text-right font-medium">
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
                         {formatNumber(trove.collateral, {
                           minimumFractionDigits: 4,
                           maximumFractionDigits: 4,
                         })}{" "}
                         BTC
-                      </td>
-                      <td className="p-3 text-right font-medium">
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
                         {formatNumber(trove.principal_debt + trove.interest, {
                           minimumFractionDigits: 2,
                           maximumFractionDigits: 2,
                         })}{" "}
                         MUSD
-                      </td>
-                      <td
-                        className={`p-3 text-right font-semibold ${getCrColor(
+                      </TableCell>
+                      <TableCell
+                        className={`text-right font-semibold ${getCrColor(
                           trove.collaterization_ratio
                         )}`}
                       >
@@ -108,19 +128,16 @@ export const AllTrovesPreview = ({
                           maximumFractionDigits: 1,
                         })}
                         %
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
-            </div>
+                </TableBody>
+              </Table>
+            </TableShell>
 
             <div className="space-y-3 md:hidden">
               {riskiestTroves.map((trove) => (
-                <div
-                  key={trove.id}
-                  className="rounded-xl border border-card-border/40 bg-card/30 p-4"
-                >
+                <TableCard key={trove.id}>
                   <div className="flex items-center justify-between gap-2">
                     <a
                       href={`https://explorer.mezo.org/address/${trove.owner}`}
@@ -168,7 +185,7 @@ export const AllTrovesPreview = ({
                       </span>
                     </div>
                   </div>
-                </div>
+                </TableCard>
               ))}
             </div>
           </>

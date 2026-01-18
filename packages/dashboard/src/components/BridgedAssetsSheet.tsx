@@ -11,6 +11,7 @@ import { ArrowDownLeft, ArrowUpRight, Link2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
+import { TableCard, TableShell } from "@/components/TableShell";
 import {
   Table,
   TableBody,
@@ -241,7 +242,7 @@ export const BridgedAssetsSheet = ({
             </div>
           ) : (
             <>
-              <div className="rounded-xl border border-card-border/60 hidden md:block">
+              <TableShell className="hidden md:block">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -289,13 +290,10 @@ export const BridgedAssetsSheet = ({
                     ))}
                   </TableBody>
                 </Table>
-              </div>
+              </TableShell>
               <div className="space-y-3 md:hidden">
                 {sortedAssets.map((asset) => (
-                  <div
-                    key={asset.token_symbol}
-                    className="rounded-xl border border-card-border/60 bg-muted/20 p-4"
-                  >
+                  <TableCard key={asset.token_symbol}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">
@@ -338,7 +336,7 @@ export const BridgedAssetsSheet = ({
                         </a>
                       </div>
                     </div>
-                  </div>
+                  </TableCard>
                 ))}
               </div>
             </>
@@ -406,7 +404,7 @@ export const BridgedAssetsSheet = ({
               </div>
             ) : (
               <>
-                <div className="rounded-xl border border-card-border/60 hidden md:block">
+                <TableShell className="hidden md:block">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -521,7 +519,7 @@ export const BridgedAssetsSheet = ({
                       })}
                     </TableBody>
                   </Table>
-                </div>
+                </TableShell>
                 <div className="space-y-3 md:hidden">
                   {filteredTransfers.map((transfer) => {
                     const tokenMeta =
@@ -534,10 +532,7 @@ export const BridgedAssetsSheet = ({
                     const senderIsZero = isZeroAddress(transfer.sender);
                     const receiverIsZero = isZeroAddress(transfer.receiver);
                     return (
-                      <div
-                        key={transfer.id}
-                        className="rounded-xl border border-card-border/60 bg-muted/20 p-4"
-                      >
+                      <TableCard key={transfer.id}>
                         <div className="flex items-start justify-between gap-3">
                           <a
                             href={`https://explorer.mezo.org/tx/${transfer.tx_hash}`}
@@ -626,7 +621,7 @@ export const BridgedAssetsSheet = ({
                             )}
                           </div>
                         </div>
-                      </div>
+                      </TableCard>
                     );
                   })}
                 </div>

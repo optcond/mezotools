@@ -26,6 +26,7 @@ import { MezoTokens } from "@mtools/shared";
 import { formatUnits } from "viem";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
+import { TableCard, TableShell } from "@/components/TableShell";
 const EPOCHS_PER_YEAR = 52n;
 
 const formatDecimalString = (value?: string | null, fractionDigits = 4) => {
@@ -525,7 +526,7 @@ export const BribesSheet = ({
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="hidden md:block pr-4">
+              <TableShell className="hidden md:block">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -535,7 +536,7 @@ export const BribesSheet = ({
                         <button
                           type="button"
                           onClick={() => handleSort("apr")}
-                          className="flex items-center gap-1 text-left text-sm font-semibold text-foreground transition-smooth hover:text-primary"
+                          className="flex items-center gap-1 text-left text-xs font-medium text-muted-foreground transition-smooth hover:text-foreground"
                         >
                           APR
                           {sortKey === "apr"
@@ -549,7 +550,7 @@ export const BribesSheet = ({
                         <button
                           type="button"
                           onClick={() => handleSort("votes")}
-                          className="ml-auto flex items-center gap-1 text-right text-sm font-semibold text-foreground transition-smooth hover:text-primary"
+                          className="ml-auto flex items-center gap-1 text-right text-xs font-medium text-muted-foreground transition-smooth hover:text-foreground"
                         >
                           Votes
                           {sortKey === "votes"
@@ -735,7 +736,7 @@ export const BribesSheet = ({
                     })}
                   </TableBody>
                 </Table>
-              </div>
+              </TableShell>
 
               <div className="space-y-3 md:hidden">
                 <div className="flex flex-wrap items-center gap-2">
@@ -794,10 +795,7 @@ export const BribesSheet = ({
                       : null;
 
                   return (
-                    <div
-                      key={gauge.gauge}
-                      className="rounded-lg border border-card-border/40 bg-card/30 p-4"
-                    >
+                    <TableCard key={gauge.gauge}>
                       <div className="space-y-1 border-b border-card-border/60 pb-3">
                         <div className="font-semibold text-foreground">
                           {gauge.poolName ?? "Unknown pool"}
@@ -967,7 +965,7 @@ export const BribesSheet = ({
                           </div>
                         )}
                       </div>
-                    </div>
+                    </TableCard>
                   );
                 })}
               </div>
