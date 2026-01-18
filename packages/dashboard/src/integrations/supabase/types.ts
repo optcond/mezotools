@@ -215,6 +215,57 @@ export type Database = {
         }
         Relationships: []
       }
+      bridge_transfers: {
+        Row: {
+          amount: string
+          asset: string
+          block_number: number
+          block_timestamp: string
+          bridge_chain: number | null
+          direction: string
+          id: string
+          receiver: string
+          sender: string
+          sequence_number: string | null
+          transaction_index: number
+          transfer_index: number
+          tx_hash: string
+          tx_status: string
+        }
+        Insert: {
+          amount?: string
+          asset?: string
+          block_number?: number
+          block_timestamp?: string
+          bridge_chain?: number | null
+          direction?: string
+          id: string
+          receiver?: string
+          sender?: string
+          sequence_number?: string | null
+          transaction_index?: number
+          transfer_index?: number
+          tx_hash?: string
+          tx_status?: string
+        }
+        Update: {
+          amount?: string
+          asset?: string
+          block_number?: number
+          block_timestamp?: string
+          bridge_chain?: number | null
+          direction?: string
+          id?: string
+          receiver?: string
+          sender?: string
+          sequence_number?: string | null
+          transaction_index?: number
+          transfer_index?: number
+          tx_hash?: string
+          tx_status?: string
+        }
+        Relationships: []
+      }
       gauge_state: {
         Row: {
           epoch_end: string
