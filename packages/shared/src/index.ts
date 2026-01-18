@@ -8,6 +8,8 @@ export { GaugesFetcher } from "./lib/gaugesFetcher";
 export type { GaugeIncentive, GaugeBribeTokenReward } from "./lib/gaugesFetcher";
 export { createSupabase, SupabaseRepository } from "./lib/supabase";
 export { RedemptionMaker } from "./lib/redemptionMaker";
+export { BridgeChecker } from "./lib/bridgeChecker";
+export type { BridgeTransfer } from "./lib/bridgeChecker";
 export type {
   RedemptionResult,
   RedemptionSimulation,

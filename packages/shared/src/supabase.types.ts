@@ -93,6 +93,23 @@ export interface BridgeAssetRow {
   updated_at: string;
 }
 
+export interface BridgeTransferRow {
+  id: string;
+  direction: "in" | "out";
+  sender: string;
+  receiver: string;
+  amount: string;
+  asset: string;
+  tx_status: "success" | "failed";
+  tx_hash: string;
+  block_number: number;
+  transaction_index: number;
+  transfer_index: number;
+  block_timestamp: string;
+  bridge_chain: number | null;
+  sequence_number: string | null;
+}
+
 export interface GaugeStateRow {
   key: string;
   epoch_end: number;

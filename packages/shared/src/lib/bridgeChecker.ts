@@ -22,6 +22,10 @@ export type BridgeTransfer = {
   receiver: `0x${string}`;
   amount: bigint;
   asset: `0x${string}`;
+  transferIndex: number;
+  sequenceNumber?: bigint;
+  bridgeChain?: number;
+  txStatus: "success" | "failed";
   transactionHash: `0x${string}`;
   blockNumber: bigint;
   transactionIndex: number;
@@ -66,6 +70,7 @@ export class BridgeChecker {
     txIndex: number;
     blockNumber: bigint;
     blockTimestamp: number;
+    txStatus: "success" | "failed";
   }): BridgeTransfer[] {
     const {
       functionName,
@@ -75,6 +80,7 @@ export class BridgeChecker {
       txIndex,
       blockNumber,
       blockTimestamp,
+      txStatus,
     } = params;
 
     if (functionName === "bridge") {
@@ -86,12 +92,15 @@ export class BridgeChecker {
           token: `0x${string}`;
         }>
       ];
-      return events.map((event) => ({
+      return events.map((event, index) => ({
         direction: "in",
         sender: txFrom,
         receiver: event.recipient,
         amount: event.amount,
         asset: event.token,
+        transferIndex: index,
+        sequenceNumber: event.sequenceNumber,
+        txStatus,
         transactionHash: txHash,
         blockNumber,
         transactionIndex: txIndex,
@@ -113,6 +122,9 @@ export class BridgeChecker {
         receiver: recipient,
         amount,
         asset: token,
+        transferIndex: 0,
+        bridgeChain: _chain,
+        txStatus,
         transactionHash: txHash,
         blockNumber,
         transactionIndex: txIndex,
@@ -198,6 +210,14 @@ export class BridgeChecker {
     chunkSize?: bigint;
   }): Promise<BridgeTransfer[]> {
     const calls = await this.getBridgeCallsInRange(options);
+    if (calls.length === 0) {
+      return [];
+    }
+
+    const statusMap = await this.buildReceiptStatusMap(
+      calls.map((call) => call.transactionHash)
+    );
+
     const transfers = calls.flatMap((call) =>
       this.buildTransfers({
         functionName: call.functionName,
@@ -207,6 +227,7 @@ export class BridgeChecker {
         txIndex: call.transactionIndex,
         blockNumber: call.blockNumber,
         blockTimestamp: call.blockTimestamp,
+        txStatus: statusMap.get(call.transactionHash) ?? "failed",
       })
     );
 
@@ -217,5 +238,29 @@ export class BridgeChecker {
     });
 
     return transfers;
+  }
+
+  private async buildReceiptStatusMap(
+    txHashes: `0x${string}`[]
+  ): Promise<Map<`0x${string}`, "success" | "failed">> {
+    const unique = [...new Set(txHashes)];
+    const receipts = await Promise.all(
+      unique.map(async (hash) => {
+        try {
+          const receipt = await this.client.getTransactionReceipt({ hash });
+          return [
+            hash,
+            receipt.status === "success"
+              ? ("success" as const)
+              : ("failed" as const),
+          ];
+        } catch (error) {
+          console.warn("Failed to fetch transaction receipt", { hash, error });
+          return [hash, "failed" as const];
+        }
+      })
+    );
+
+    return new Map(receipts as Array<[`0x${string}`, "success" | "failed"]>);
   }
 }

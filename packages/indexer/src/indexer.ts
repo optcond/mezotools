@@ -12,6 +12,7 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import {
   BridgeAssetFetcher,
+  BridgeChecker,
   CowFiFetcher,
   GaugesFetcher,
   MezoChain,
@@ -37,19 +38,20 @@ interface IndexerDependencies {
   mezoClient: PublicClient;
   ethClient: PublicClient;
   gaugesFetcher: GaugesFetcher;
+  bridgeChecker: BridgeChecker;
 }
 
 export class Indexer {
   constructor(
     private config: IndexerConfig,
-    private readonly deps: IndexerDependencies
+    private readonly deps: IndexerDependencies,
   ) {}
 
   static async createFromEnv(): Promise<Indexer> {
     const createClient = (
       _type: ProviderType,
       url: string,
-      chain: Chain
+      chain: Chain,
     ): PublicClient => {
       let transport: WebSocketTransport | HttpTransport;
       if (_type === ProviderType.WEBSOCKET) {
@@ -68,13 +70,13 @@ export class Indexer {
     const mezoClient = createClient(
       config.mezoRpcType,
       config.mezoRpcUrl,
-      MezoChain as Chain
+      MezoChain as Chain,
     );
 
     const ethClient = createClient(
       config.ethereumRpcType,
       config.ethereumRpcUrl,
-      mainnet
+      mainnet,
     );
 
     // troveManager
@@ -90,13 +92,14 @@ export class Indexer {
     const cowFiTradingSDK = new TradingSdk(
       { appCode: "mezo-tools", chainId: SupportedChainId.MAINNET },
       {},
-      adapter
+      adapter,
     );
     const cowFi = new CowFiFetcher(cowFiTradingSDK);
 
     // bridgeAssetFetcher
     const bridgeAssetFetcher = new BridgeAssetFetcher(ethClient);
     const gaugesFetcher = new GaugesFetcher(mezoClient);
+    const bridgeChecker = new BridgeChecker(mezoClient);
 
     // repository
     const supabaseClient = createSupabase({
@@ -114,6 +117,7 @@ export class Indexer {
       mezoClient,
       ethClient,
       gaugesFetcher,
+      bridgeChecker,
     });
   }
 
@@ -175,7 +179,7 @@ export class Indexer {
     console.log(`Last known processed block: ${lastKnownBlock}`);
     console.log(`Current block number: ${currentBlockNumber}`);
     console.log(
-      `Fetched ${troves.length} troves, TCR: ${systemState.ratio}, BTC Price: ${systemState.btcPrice}`
+      `Fetched ${troves.length} troves, TCR: ${systemState.ratio}, BTC Price: ${systemState.btcPrice}`,
     );
 
     const musdToUsdcPrice = swapData.buyAmount;
@@ -189,11 +193,11 @@ export class Indexer {
 
     const veSupplyEpochStart =
       (await this.deps.gaugesFetcher.getTotalVeSupplyAt(
-        epochTiming.epochStart
+        epochTiming.epochStart,
       )) ?? 0n;
     const totalVotesTracked = gaugeIncentives.reduce(
       (acc, gauge) => acc + gauge.votes,
-      0n
+      0n,
     );
 
     await Promise.all([
@@ -215,27 +219,58 @@ export class Indexer {
     if (bridgeAssets.length === 0) {
       console.warn("No bridge assets fetched during sync");
     } else {
-      await this.deps.repository.upsertBridgeAssets(bridgeAssets),
-        console.log(`Upserted ${bridgeAssets.length} bridge assets`);
+      (await this.deps.repository.upsertBridgeAssets(bridgeAssets),
+        console.log(`Upserted ${bridgeAssets.length} bridge assets`));
     }
 
     /* Liquidations and redemptions */
-    await this._processLiqsAndRedemps(lastKnownBlock, currentBlockNumber);
+    await this._processLiqsAndRedemps(6170041, currentBlockNumber);
 
     /* 4H average charts data */
     await this._process4hHistory(
       currentBlockNumber,
       systemSnapshot.btcPrice,
-      musdToUsdcPrice
+      musdToUsdcPrice,
     );
+
+    await this._processBridgeTransfers(6170041, currentBlockNumber);
 
     await this.deps.repository.updateIndexerState(currentBlockNumber);
     console.log(`Recorded indexer state to block ${currentBlockNumber}`);
   }
 
+  private async _processBridgeTransfers(
+    lastKnownBlock: number,
+    currentBlock: number,
+  ): Promise<void> {
+    const startBlock = Math.max(lastKnownBlock + 1, 0);
+
+    if (startBlock > currentBlock) {
+      console.log("No new bridge transfers to index");
+      return;
+    }
+
+    console.log(
+      `Indexing bridge transfers from block ${startBlock} to ${currentBlock}`,
+    );
+
+    const transfers = await this.deps.bridgeChecker.getBridgeTransfersInRange({
+      fromBlock: BigInt(startBlock),
+      toBlock: BigInt(currentBlock),
+    });
+
+    if (transfers.length === 0) {
+      console.log("No bridge transfers found in range");
+      return;
+    }
+
+    await this.deps.repository.upsertBridgeTransfers(transfers);
+    console.log(`Upserted ${transfers.length} bridge transfers`);
+  }
+
   private async _processLiqsAndRedemps(
     lastKnownBlock: number,
-    currentBlock: number
+    currentBlock: number,
   ): Promise<void> {
     let latestLiquidationBlock: number;
     let latestRedemptionBlock: number;
@@ -251,21 +286,21 @@ export class Indexer {
         lastKnownBlock > 0 ? lastKnownBlock : currentBlock - 500000;
     }
     console.log(
-      `Latest liquidation block: ${latestLiquidationBlock}, Latest redemption block: ${latestRedemptionBlock}`
+      `Latest liquidation block: ${latestLiquidationBlock}, Latest redemption block: ${latestRedemptionBlock}`,
     );
 
     const [liquidations, redemptions] = await Promise.all([
       this.deps.dataManager.getLiquidationsSinceBlock(
         Math.max(latestLiquidationBlock + 1, 0),
-        this.config.liquidationChunkSize
+        this.config.liquidationChunkSize,
       ),
       this.deps.dataManager.getRedemptionsSinceBlock(
         Math.max(latestRedemptionBlock + 1, 0),
-        this.config.redemptionChunkSize
+        this.config.redemptionChunkSize,
       ),
     ]);
     console.log(
-      `Fetched ${liquidations.length} liquidations and ${redemptions.length} redemptions`
+      `Fetched ${liquidations.length} liquidations and ${redemptions.length} redemptions`,
     );
 
     if (liquidations.length > 0) {
@@ -281,7 +316,7 @@ export class Indexer {
   private async _process4hHistory(
     currentBlock: number,
     btcPrice: number,
-    musdToUsdcPrice: number
+    musdToUsdcPrice: number,
   ) {
     const [lastBtcOracleBlockValue, lastMusd4hBlockValue] = await Promise.all([
       this.deps.repository.getLastPriceFeedBlock("btc_oracle"),
@@ -296,16 +331,16 @@ export class Indexer {
       await this.deps.repository.recordPrice(
         btcPrice,
         "btc_oracle",
-        currentBlock
+        currentBlock,
       );
       console.log(`Recorded BTC price ${btcPrice} ${currentBlock}`);
       await this.deps.repository.recordPrice(
         Math.round(musdToUsdcPrice),
         "musd_usdc",
-        currentBlock
+        currentBlock,
       );
       console.log(
-        `Recorded MUSD price ${Math.round(musdToUsdcPrice)} ${currentBlock}`
+        `Recorded MUSD price ${Math.round(musdToUsdcPrice)} ${currentBlock}`,
       );
     }
 
@@ -322,14 +357,14 @@ export class Indexer {
         await this.deps.repository.recordPrice(
           averageMusdToUsdcPrice,
           "musd_usdc_4h",
-          currentBlock
+          currentBlock,
         );
         console.log(
-          `Recorded 4h MUSD average price ${averageMusdToUsdcPrice} ${currentBlock}`
+          `Recorded 4h MUSD average price ${averageMusdToUsdcPrice} ${currentBlock}`,
         );
       } else {
         console.log(
-          "Skipped recording 4h MUSD average price: no snapshots available"
+          "Skipped recording 4h MUSD average price: no snapshots available",
         );
       }
     }

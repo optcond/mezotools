@@ -11,6 +11,7 @@ import type {
   SystemSnapshot,
   DailyMetricsRow,
   BridgeAssetRow,
+  BridgeTransferRow,
   GaugeStateRow,
   GaugeRow,
   GaugeBribeRow,
@@ -21,6 +22,7 @@ import type {
   TroveRedemptionEvent,
 } from "../trove.types";
 import type { BridgeAssetBalance } from "../bridge.types";
+import type { BridgeTransfer } from "./bridgeChecker";
 import type { GaugeIncentive } from "./gaugesFetcher";
 
 export function createSupabase(options: SupabaseOptions): SupabaseClient {
@@ -372,6 +374,41 @@ export class SupabaseRepository {
 
     if (error) {
       throw new Error(`Failed to upsert bridge assets: ${error.message}`);
+    }
+  }
+
+  async upsertBridgeTransfers(transfers: BridgeTransfer[]): Promise<void> {
+    if (transfers.length === 0) {
+      return;
+    }
+
+    const rows: BridgeTransferRow[] = transfers.map((transfer) => ({
+      id: `${transfer.transactionHash}:${transfer.transactionIndex}:${transfer.transferIndex}`,
+      direction: transfer.direction,
+      sender: transfer.sender.toLowerCase(),
+      receiver: transfer.receiver.toLowerCase(),
+      amount: transfer.amount.toString(),
+      asset: transfer.asset.toLowerCase(),
+      tx_status: transfer.txStatus,
+      tx_hash: transfer.transactionHash,
+      block_number: Number(transfer.blockNumber),
+      transaction_index: transfer.transactionIndex,
+      transfer_index: transfer.transferIndex,
+      block_timestamp: new Date(transfer.blockTimestamp * 1000).toISOString(),
+      bridge_chain:
+        typeof transfer.bridgeChain === "number" ? transfer.bridgeChain : null,
+      sequence_number:
+        typeof transfer.sequenceNumber === "bigint"
+          ? transfer.sequenceNumber.toString()
+          : null,
+    }));
+
+    const { error } = await this.from("bridge_transfers").upsert(rows, {
+      onConflict: "id",
+    });
+
+    if (error) {
+      throw new Error(`Failed to upsert bridge transfers: ${error.message}`);
     }
   }
 

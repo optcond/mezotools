@@ -27,10 +27,10 @@ describe("BridgeChecker", () => {
 
     const checker = new BridgeChecker(client, new BlockFetcher(client));
     const results = await checker.getBridgeTransfersInRange({
-      // fromBlock: 6172178n,
-      // toBlock: 6172178n,
-      fromBlock,
-      toBlock,
+      fromBlock: 6170558n,
+      toBlock: 6170558n,
+      // fromBlock,
+      // toBlock,
       chunkSize,
     });
 

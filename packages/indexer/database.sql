@@ -127,3 +127,24 @@ create table public.gauges (
 create unique index IF not exists gauges_pool_idx on public.gauges using btree (pool) TABLESPACE pg_default;
 create index IF not exists gauges_epoch_idx on public.gauges using btree (epoch_start desc) TABLESPACE pg_default;
 create index IF not exists gauges_updated_at_idx on public.gauges using btree (updated_at desc) TABLESPACE pg_default;
+
+create table public.bridge_transfers (
+  id text not null,
+  direction text not null,
+  sender text not null,
+  receiver text not null,
+  amount numeric not null,
+  asset text not null,
+  tx_status text not null,
+  tx_hash text not null,
+  block_number bigint not null,
+  transaction_index integer not null,
+  transfer_index integer not null,
+  block_timestamp timestamp with time zone not null,
+  bridge_chain integer null,
+  sequence_number numeric null,
+  constraint bridge_transfers_pkey primary key (id)
+) TABLESPACE pg_default;
+
+create index IF not exists bridge_transfers_block_idx on public.bridge_transfers using btree (block_number desc, transaction_index desc, transfer_index desc) TABLESPACE pg_default;
+create index IF not exists bridge_transfers_asset_idx on public.bridge_transfers using btree (asset) TABLESPACE pg_default;
