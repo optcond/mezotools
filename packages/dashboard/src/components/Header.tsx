@@ -161,7 +161,7 @@ export const Header = ({
             <Button
               size="sm"
               variant="ghost"
-              className="border border-primary bg-transparent text-primary hover:bg-primary/10 hover:text-primary"
+              className="hidden border border-primary bg-transparent text-primary hover:bg-primary/10 hover:text-primary sm:inline-flex"
               onClick={onCustomizeClick}
             >
               <SlidersHorizontal className="mr-2 h-4 w-4" />

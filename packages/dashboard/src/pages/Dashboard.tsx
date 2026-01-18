@@ -12,6 +12,7 @@ import {
   GripVertical,
   ChevronUp,
   ChevronDown,
+  MoreHorizontal,
 } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 
@@ -152,6 +153,7 @@ const Dashboard = () => {
   } = useMonitorData();
   const wallet = useWallet();
   const [isCustomizeOpen, setIsCustomizeOpen] = useState(false);
+  const [isActionsOpen, setIsActionsOpen] = useState(false);
   const [draggingWidget, setDraggingWidget] =
     useState<DashboardWidgetKey | null>(null);
   const [widgetVisibility, setWidgetVisibility] = useState<
@@ -498,6 +500,19 @@ const Dashboard = () => {
           ))}
       </main>
 
+      <div className="fixed bottom-6 right-4 z-40 sm:hidden">
+        <Button
+          type="button"
+          size="lg"
+          className="h-14 w-14 rounded-full p-0 shadow-xl shadow-primary/30"
+          onClick={() => setIsActionsOpen(true)}
+          aria-label="Actions"
+        >
+          <MoreHorizontal className="h-6 w-6" />
+          <span className="sr-only">Actions</span>
+        </Button>
+      </div>
+
       <BridgedAssetsSheet
         open={activeSheet === "bridged-assets"}
         onOpenChange={handleSheetOpenChange("bridged-assets")}
@@ -525,6 +540,42 @@ const Dashboard = () => {
         troves={troves}
         isLoading={isLoading}
       />
+      <Sheet open={isActionsOpen} onOpenChange={setIsActionsOpen}>
+        <SheetContent
+          side="bottom"
+          className="flex w-full flex-col gap-4 rounded-t-2xl border-x-0 border-b-0"
+          enableSwipeClose
+          onSwipeClose={() => setIsActionsOpen(false)}
+        >
+          <SheetHeader>
+            <SheetTitle>Actions</SheetTitle>
+            <SheetDescription>
+              Quick access to dashboard tools.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="grid gap-3">
+            <Button
+              type="button"
+              onClick={() => {
+                setIsActionsOpen(false);
+                setIsCustomizeOpen(true);
+              }}
+            >
+              Customize
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setIsActionsOpen(false);
+                setSheetParam("debt-calculator");
+              }}
+            >
+              Debt calculator
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
       <Sheet open={isCustomizeOpen} onOpenChange={setIsCustomizeOpen}>
         <SheetContent
           side="right"
