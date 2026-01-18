@@ -5,7 +5,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { LatestActivityTable } from "@/components/LatestActivityTable";
+import { LiquidationsRedemptionsTable } from "@/components/LiquidationsRedemptionsTable";
 
 interface Liquidation {
   id: string;
@@ -29,7 +29,7 @@ interface Redemption {
   block_timestamp: string;
 }
 
-interface LatestActivitySheetProps {
+interface LiquidationsRedemptionsSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   liquidations: Liquidation[];
@@ -37,13 +37,13 @@ interface LatestActivitySheetProps {
   isLoading: boolean;
 }
 
-export const LatestActivitySheet = ({
+export const LiquidationsRedemptionsSheet = ({
   open,
   onOpenChange,
   liquidations,
   redemptions,
   isLoading,
-}: LatestActivitySheetProps) => (
+}: LiquidationsRedemptionsSheetProps) => (
   <Sheet open={open} onOpenChange={onOpenChange}>
     <SheetContent
       side="right"
@@ -52,7 +52,7 @@ export const LatestActivitySheet = ({
       onSwipeClose={() => onOpenChange(false)}
     >
       <SheetHeader>
-        <SheetTitle>Latest activity</SheetTitle>
+        <SheetTitle>Liquidations & Redemptions</SheetTitle>
         <SheetDescription>
           Latest 50 liquidations and redemptions, refreshed with each indexer
           update.
@@ -61,7 +61,7 @@ export const LatestActivitySheet = ({
       {isLoading ? (
         <div className="h-64 rounded-xl bg-muted/20 animate-pulse" />
       ) : (
-        <LatestActivityTable
+        <LiquidationsRedemptionsTable
           liquidations={liquidations}
           redemptions={redemptions}
           limit={50}

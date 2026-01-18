@@ -21,7 +21,7 @@ import { BribesSheet } from "@/components/BribesSheet";
 // import { SwapDialog } from "@/components/SwapDialog";
 import { AllTrovesPreview } from "@/components/AllTrovesPreview";
 import { AllTrovesSheet } from "@/components/AllTrovesSheet";
-import { LatestActivitySheet } from "@/components/LatestActivitySheet";
+import { LiquidationsRedemptionsSheet } from "@/components/LiquidationsRedemptionsSheet";
 import { CustomizeSheet } from "@/components/CustomizeSheet";
 import { useMonitorData } from "@/hooks/useMonitorData";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -50,9 +50,9 @@ const RiskAnalysisSection = lazy(() =>
     default: module.RiskAnalysis,
   }))
 );
-const LatestActivitySection = lazy(() =>
-  import("@/components/LatestActivity").then((module) => ({
-    default: module.LatestActivity,
+const LiquidationsRedemptionsSection = lazy(() =>
+  import("@/components/LiquidationsRedemptions").then((module) => ({
+    default: module.LiquidationsRedemptions,
   }))
 );
 const PersonalWalletStatsSection = lazy(() =>
@@ -97,7 +97,7 @@ const RiskAnalysisFallback = () => (
   </div>
 );
 
-const LatestActivityFallback = () => (
+const LiquidationsRedemptionsFallback = () => (
   <div className="glass-card p-6 space-y-4">
     <div className="h-6 w-48 rounded bg-muted/30" />
     <div className="h-48 rounded-xl bg-muted/30" />
@@ -119,7 +119,7 @@ const dashboardWidgets = [
   { key: "system-state", label: "System state" },
   { key: "risk", label: "Risk analysis" },
   { key: "price-feed", label: "Price feed" },
-  { key: "latest-activity", label: "Latest activity" },
+  { key: "latest-activity", label: "Liquidations & Redemptions" },
   { key: "troves-summary", label: "Highest-Risk Troves" },
 ] as const;
 
@@ -431,8 +431,8 @@ const Dashboard = () => {
       </Suspense>
     ),
     "latest-activity": (
-      <Suspense fallback={<LatestActivityFallback />}>
-        <LatestActivitySection
+      <Suspense fallback={<LiquidationsRedemptionsFallback />}>
+        <LiquidationsRedemptionsSection
           liquidations={liquidations}
           redemptions={redemptions}
           isLoading={isLoading}
@@ -539,7 +539,7 @@ const Dashboard = () => {
         troves={troves}
         isLoading={isLoading}
       />
-      <LatestActivitySheet
+      <LiquidationsRedemptionsSheet
         open={activeSheet === "latest-activity"}
         onOpenChange={handleSheetOpenChange("latest-activity")}
         liquidations={liquidations}

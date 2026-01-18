@@ -1,7 +1,7 @@
 import { History } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { LatestActivityTable } from "@/components/LatestActivityTable";
+import { LiquidationsRedemptionsTable } from "@/components/LiquidationsRedemptionsTable";
 
 interface Liquidation {
   id: string;
@@ -26,23 +26,25 @@ interface Redemption {
   block_timestamp: string;
 }
 
-interface LatestActivityProps {
+interface LiquidationsRedemptionsProps {
   liquidations: Liquidation[];
   redemptions: Redemption[];
   isLoading: boolean;
   onOpenFullTable?: () => void;
 }
 
-export const LatestActivity = ({
+export const LiquidationsRedemptions = ({
   liquidations,
   redemptions,
   isLoading,
   onOpenFullTable,
-}: LatestActivityProps) => {
+}: LiquidationsRedemptionsProps) => {
   if (isLoading) {
     return (
       <Card className="glass-card p-6">
-        <h2 className="text-lg font-semibold mb-4">Latest Activity</h2>
+        <h2 className="text-lg font-semibold mb-4">
+          Liquidations & Redemptions
+        </h2>
         <div className="h-64 bg-muted/20 animate-pulse rounded-xl" />
       </Card>
     );
@@ -53,10 +55,10 @@ export const LatestActivity = ({
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-lg font-semibold flex items-center gap-2 text-primary">
           <History className="h-5 w-5 text-primary" />
-          Latest Activity
+          Liquidations & Redemptions
         </h2>
       </div>
-      <LatestActivityTable
+      <LiquidationsRedemptionsTable
         liquidations={liquidations}
         redemptions={redemptions}
         limit={5}
