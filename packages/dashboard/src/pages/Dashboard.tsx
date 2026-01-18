@@ -9,9 +9,6 @@ import {
 import {
   Loader2,
   AlertTriangle,
-  GripVertical,
-  ChevronUp,
-  ChevronDown,
   MoreHorizontal,
 } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
@@ -24,10 +21,10 @@ import { BribesSheet } from "@/components/BribesSheet";
 // import { SwapDialog } from "@/components/SwapDialog";
 import { AllTrovesPreview } from "@/components/AllTrovesPreview";
 import { AllTrovesSheet } from "@/components/AllTrovesSheet";
+import { CustomizeSheet } from "@/components/CustomizeSheet";
 import { useMonitorData } from "@/hooks/useMonitorData";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Sheet,
   SheetContent,
@@ -36,7 +33,6 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { useWallet } from "@/hooks/useWallet";
-import { Label } from "@/components/ui/label";
 
 const SystemStateSection = lazy(() =>
   import("@/components/SystemState").then((module) => ({
@@ -152,7 +148,6 @@ const Dashboard = () => {
     lastUpdatedAt,
   } = useMonitorData();
   const wallet = useWallet();
-  const [isCustomizeOpen, setIsCustomizeOpen] = useState(false);
   const [isActionsOpen, setIsActionsOpen] = useState(false);
   const [draggingWidget, setDraggingWidget] =
     useState<DashboardWidgetKey | null>(null);
@@ -202,7 +197,8 @@ const Dashboard = () => {
     sheetParam === "debt-calculator" ||
     sheetParam === "redemption" ||
     sheetParam === "bribes" ||
-    sheetParam === "all-troves"
+    sheetParam === "all-troves" ||
+    sheetParam === "customize"
       ? sheetParam
       : null;
 
@@ -462,7 +458,7 @@ const Dashboard = () => {
         onRedeemClick={() => setSheetParam("redemption")}
         onBribesClick={() => setSheetParam("bribes")}
         onTrovesClick={() => setSheetParam("all-troves")}
-        onCustomizeClick={() => setIsCustomizeOpen(true)}
+        onCustomizeClick={() => setSheetParam("customize")}
         // onSwapClick={() => setIsSwapDialogOpen(true)}
       />
 
@@ -540,6 +536,20 @@ const Dashboard = () => {
         troves={troves}
         isLoading={isLoading}
       />
+      <CustomizeSheet
+        open={activeSheet === "customize"}
+        onOpenChange={handleSheetOpenChange("customize")}
+        widgets={dashboardWidgets}
+        widgetOrder={widgetOrder}
+        widgetVisibility={widgetVisibility}
+        draggingWidget={draggingWidget}
+        onToggleWidget={toggleWidget}
+        onMoveWidgetByOffset={moveWidgetByOffset}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+        onDragEnd={handleDragEnd}
+      />
       <Sheet open={isActionsOpen} onOpenChange={setIsActionsOpen}>
         <SheetContent
           side="bottom"
@@ -556,102 +566,34 @@ const Dashboard = () => {
           <div className="grid gap-3">
             <Button
               type="button"
+              variant="outline"
               onClick={() => {
                 setIsActionsOpen(false);
-                setIsCustomizeOpen(true);
+                setSheetParam("bridged-assets");
               }}
             >
-              Customize
+              Bridged assets
             </Button>
             <Button
               type="button"
               variant="outline"
               onClick={() => {
                 setIsActionsOpen(false);
-                setSheetParam("debt-calculator");
+                setSheetParam("redemption");
               }}
             >
-              Debt calculator
+              Redeem
             </Button>
-          </div>
-        </SheetContent>
-      </Sheet>
-      <Sheet open={isCustomizeOpen} onOpenChange={setIsCustomizeOpen}>
-        <SheetContent
-          side="right"
-          className="flex h-full w-full flex-col gap-4 overflow-y-auto sm:max-w-md"
-          enableSwipeClose
-          onSwipeClose={() => setIsCustomizeOpen(false)}
-        >
-          <SheetHeader>
-            <SheetTitle>Customize dashboard</SheetTitle>
-            <SheetDescription>
-              Pick the widgets you want to keep on screen and drag to reorder.
-              On mobile, use the arrows.
-            </SheetDescription>
-          </SheetHeader>
-          <div className="space-y-4">
-            {widgetOrder.map((key, index) => {
-              const widget = dashboardWidgets.find((item) => item.key === key);
-              if (!widget) {
-                return null;
-              }
-              const isDragging = draggingWidget === key;
-              const isFirst = index === 0;
-              const isLast = index === widgetOrder.length - 1;
-              return (
-                <div
-                  key={widget.key}
-                  draggable
-                  onDragStart={handleDragStart(widget.key)}
-                  onDragOver={handleDragOver(widget.key)}
-                  onDrop={handleDrop(widget.key)}
-                  onDragEnd={handleDragEnd}
-                  className={`flex items-center justify-between gap-4 rounded-xl border border-card-border/60 bg-card/40 px-4 py-3 transition ${
-                    isDragging ? "opacity-70 ring-1 ring-primary/40" : ""
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <GripVertical className="h-4 w-4 text-muted-foreground" />
-                    <Label
-                      htmlFor={`widget-${widget.key}`}
-                      className="text-sm font-medium text-foreground"
-                    >
-                      {widget.label}
-                    </Label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1 sm:hidden">
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => moveWidgetByOffset(widget.key, -1)}
-                        disabled={isFirst}
-                        aria-label="Move widget up"
-                      >
-                        <ChevronUp className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => moveWidgetByOffset(widget.key, 1)}
-                        disabled={isLast}
-                        aria-label="Move widget down"
-                      >
-                        <ChevronDown className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <Checkbox
-                      id={`widget-${widget.key}`}
-                      checked={widgetVisibility[widget.key]}
-                      onCheckedChange={() => toggleWidget(widget.key)}
-                    />
-                  </div>
-                </div>
-              );
-            })}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setIsActionsOpen(false);
+                setSheetParam("customize");
+              }}
+            >
+              Customize
+            </Button>
           </div>
         </SheetContent>
       </Sheet>
