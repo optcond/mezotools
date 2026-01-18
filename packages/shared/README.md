@@ -34,9 +34,18 @@ pnpm --filter @mtools/shared test
 
 ## Usage examples
 
+Below are focused examples you can mix and match. The imports can be shared.
+
+### 1) Setup clients + fetcher wrapper
+
 ```ts
 import {
+  BridgeAssetFetcher,
+  BridgeChecker,
+  CowFiFetcher,
+  GaugesFetcher,
   MezoChain,
+  MezoTokens,
   TroveFetcher,
   PriceFeedFetcher,
   TroveFetcherWrapper,
@@ -45,22 +54,101 @@ import {
   SupabaseRepository,
 } from "@mtools/shared";
 import { createPublicClient, http } from "viem";
+import { mainnet } from "viem/chains";
+import { TradingSdk } from "@cowprotocol/sdk-trading";
+import { ViemAdapter } from "@cowprotocol/sdk-viem-adapter";
+import { privateKeyToAccount } from "viem/accounts";
+import { SupportedChainId } from "@cowprotocol/cow-sdk";
 
-const client = createPublicClient({ chain: MezoChain, transport: http(MezoChain.rpcUrls.default.http[0]) });
+const client = createPublicClient({
+  chain: MezoChain,
+  transport: http(MezoChain.rpcUrls.default.http[0]),
+});
+const ethClient = createPublicClient({ chain: mainnet, transport: http() });
+
 const troveFetcher = new TroveFetcher(client);
-const priceFeedFetcher = new PriceFeedFetcher(client, await troveFetcher.getPriceFeedAddress());
+const priceFeedFetcher = new PriceFeedFetcher(
+  client,
+  await troveFetcher.getPriceFeedAddress()
+);
 const fetcherWrapper = new TroveFetcherWrapper(troveFetcher, priceFeedFetcher);
+```
 
-const redemptionMaker = new RedemptionMaker(client, fetcherWrapper, /* wallet client */);
+### 2) Troves + snapshots
 
-const supabase = createSupabase({ url: process.env.SUPABASE_URL!, serviceKey: process.env.SUPABASE_SERVICE_ROLE_KEY! });
+```ts
+const supabase = createSupabase({
+  url: process.env.SUPABASE_URL!,
+  serviceKey: process.env.SUPABASE_SERVICE_ROLE_KEY!,
+});
 const repository = new SupabaseRepository(supabase);
-await repository.upsertTroves(await fetcherWrapper.getTrovesWithData(await fetcherWrapper.getBtcPrice()));
 
+const btcPrice = await fetcherWrapper.getBtcPrice();
+const troves = await fetcherWrapper.getTrovesWithData(btcPrice);
+await repository.upsertTroves(troves);
+```
+
+### 3) Bridge assets (Ethereum side)
+
+```ts
+const bridgeAssetFetcher = new BridgeAssetFetcher(ethClient);
+const bridgeAssets = await bridgeAssetFetcher.fetchAssets();
+await repository.upsertBridgeAssets(bridgeAssets);
+```
+
+### 4) Bridge transfers (Mezo side)
+
+```ts
+const bridgeChecker = new BridgeChecker(client);
+const currentBlock = await client.getBlockNumber();
+const transfers = await bridgeChecker.getBridgeTransfersInRange({
+  fromBlock: currentBlock - 100n,
+  toBlock: currentBlock,
+});
+await repository.upsertBridgeTransfers(transfers);
+```
+
+### 5) Gauges
+
+```ts
 const gaugesFetcher = new GaugesFetcher(client);
-const incentives = await gaugesFetcher.fetchGaugeIncentives({ probeAdjacentEpochs: true });
+const incentives = await gaugesFetcher.fetchGaugeIncentives({
+  probeAdjacentEpochs: true,
+});
 const totalVotes = await gaugesFetcher.getTotalVotingPower();
 const totalVeSupply = await gaugesFetcher.getTotalVeSupply();
+```
+
+### 6) CowFi (Ethereum side)
+
+```ts
+const account = privateKeyToAccount(process.env.COW_FI_PK as `0x${string}`);
+const adapter = new ViemAdapter({ provider: ethClient, signer: account });
+const cowFiTradingSDK = new TradingSdk(
+  { appCode: "mezo-tools", chainId: SupportedChainId.MAINNET },
+  {},
+  adapter
+);
+const cowFi = new CowFiFetcher(cowFiTradingSDK);
+const musdToUsdcQuote = await cowFi.getMUSDSellQuote();
+```
+
+### 7) Redemption maker
+
+```ts
+const redemptionMaker = new RedemptionMaker(
+  client,
+  fetcherWrapper,
+  /* wallet client */
+);
+
+console.log({
+  btcToken: MezoTokens.BTC.address,
+  incentivesCount: incentives.length,
+  totalVotes,
+  totalVeSupply,
+  musdToUsdcQuote,
+});
 ```
 
 ## Project layout
