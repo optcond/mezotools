@@ -674,7 +674,6 @@ export const BridgedAssetsSheet = ({
                     <PaginationContent>
                       <PaginationItem>
                         <PaginationPrevious
-                          href="#"
                           onClick={(event) => {
                             event.preventDefault();
                             if (currentPage > 1) {
@@ -696,7 +695,6 @@ export const BridgedAssetsSheet = ({
                         ) : (
                           <PaginationItem key={`page-${item}`}>
                             <PaginationLink
-                              href="#"
                               isActive={item === currentPage}
                               onClick={(event) => {
                                 event.preventDefault();
@@ -710,7 +708,6 @@ export const BridgedAssetsSheet = ({
                       )}
                       <PaginationItem>
                         <PaginationNext
-                          href="#"
                           onClick={(event) => {
                             event.preventDefault();
                             if (currentPage < totalPages) {
