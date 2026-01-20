@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Sheet,
@@ -27,6 +27,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import { EthTokens, MezoTokens } from "@mtools/shared";
 import { formatUnits } from "viem";
 
@@ -65,8 +74,7 @@ const truncateAddress = (address: string) => {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
 };
 
-const isZeroAddress = (address: string) =>
-  /^0x0{40}$/i.test(address.trim());
+const isZeroAddress = (address: string) => /^0x0{40}$/i.test(address.trim());
 
 const truncateHash = (hash: string) => {
   if (!hash) {
@@ -87,6 +95,15 @@ export const BridgedAssetsSheet = ({
   open,
   onOpenChange,
 }: BridgedAssetsSheetProps) => {
+  const [directionFilter, setDirectionFilter] = useState<"all" | "in" | "out">(
+    "all",
+  );
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "success" | "failed"
+  >("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const transfersPerPage = 30;
+
   const query = useQuery({
     queryKey: ["bridge-assets"],
     enabled: open,
@@ -109,60 +126,65 @@ export const BridgedAssetsSheet = ({
   });
 
   const transfersQuery = useQuery({
-    queryKey: ["bridge-transfers"],
+    queryKey: ["bridge-transfers", directionFilter, statusFilter, currentPage],
     enabled: open,
     refetchInterval: open ? 60_000 : false,
     staleTime: 30_000,
     refetchOnWindowFocus: true,
     retry: 1,
     queryFn: async () => {
-      const { data, error: fetchError } = await supabase
+      const from = (currentPage - 1) * transfersPerPage;
+      const to = from + transfersPerPage - 1;
+      let request = supabase
         .from("bridge_transfers")
-        .select("*")
+        .select("*", { count: "exact" })
         .order("block_number", { ascending: false })
         .order("transaction_index", { ascending: false })
         .order("transfer_index", { ascending: false })
-        .limit(50);
+        .range(from, to);
+
+      if (directionFilter !== "all") {
+        request = request.eq("direction", directionFilter);
+      }
+      if (statusFilter !== "all") {
+        request = request.eq("tx_status", statusFilter);
+      }
+
+      const { data, error: fetchError, count } = await request;
 
       if (fetchError) {
         throw new Error(fetchError.message);
       }
 
-      return data ?? [];
+      return { data: data ?? [], count: count ?? 0 };
     },
   });
-
-  const [directionFilter, setDirectionFilter] = useState<
-    "all" | "in" | "out"
-  >("all");
-  const [statusFilter, setStatusFilter] = useState<
-    "all" | "success" | "failed"
-  >("all");
 
   const assets = query.data ?? [];
   const sortedAssets = useMemo(
     () => [...assets].sort((a, b) => a.token_name.localeCompare(b.token_name)),
-    [assets]
+    [assets],
   );
-  const transfers = transfersQuery.data ?? [];
-  const filteredTransfers = useMemo(() => {
-    return transfers.filter((transfer) => {
-      if (directionFilter !== "all" && transfer.direction !== directionFilter) {
-        return false;
-      }
-      if (statusFilter !== "all" && transfer.tx_status !== statusFilter) {
-        return false;
-      }
-      return true;
-    });
-  }, [transfers, directionFilter, statusFilter]);
+  const transfers = transfersQuery.data?.data ?? [];
+  const totalTransfers = transfersQuery.data?.count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalTransfers / transfersPerPage));
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [directionFilter, statusFilter]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   const tokenMap = useMemo(() => {
     return new Map(
       Object.entries(MezoTokens).map(([symbol, token]) => [
         token.address.toLowerCase(),
         { symbol, decimals: token.decimals },
-      ])
+      ]),
     );
   }, []);
   const ethTokenMap = useMemo(() => {
@@ -170,17 +192,39 @@ export const BridgedAssetsSheet = ({
       Object.entries(EthTokens).map(([symbol, token]) => [
         token.address.toLowerCase(),
         { symbol, decimals: token.decimals },
-      ])
+      ]),
     );
   }, []);
   const bridgeAddress = assets.length > 0 ? assets[0].bridge_address : "0x—";
   const refreshLabel = query.dataUpdatedAt
     ? new Date(query.dataUpdatedAt).toLocaleTimeString()
     : null;
+  const pageItems = useMemo(() => {
+    if (totalPages <= 5) {
+      return Array.from({ length: totalPages }, (_, idx) => idx + 1);
+    }
+
+    const items: Array<number | "ellipsis"> = [1];
+    const start = Math.max(2, currentPage - 1);
+    const end = Math.min(totalPages - 1, currentPage + 1);
+
+    if (start > 2) {
+      items.push("ellipsis");
+    }
+    for (let page = start; page <= end; page += 1) {
+      items.push(page);
+    }
+    if (end < totalPages - 1) {
+      items.push("ellipsis");
+    }
+    items.push(totalPages);
+
+    return items;
+  }, [currentPage, totalPages]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent
+      <SheetContent
         side="right"
         className="flex h-full w-full flex-col gap-4 overflow-y-auto sm:max-w-5xl"
         enableSwipeClose
@@ -349,7 +393,7 @@ export const BridgedAssetsSheet = ({
                   Recent bridge transfers
                 </h3>
                 <p className="text-xs text-muted-foreground">
-                  Last 50 transfers indexed by the bridge contract.
+                  Latest transfers indexed by the bridge contract.
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -398,7 +442,7 @@ export const BridgedAssetsSheet = ({
                   ? transfersQuery.error.message
                   : "Failed to load bridge transfers."}
               </div>
-            ) : filteredTransfers.length === 0 ? (
+            ) : transfers.length === 0 ? (
               <div className="rounded-xl border border-dashed border-card-border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
                 No transfers matching the selected filters.
               </div>
@@ -419,7 +463,7 @@ export const BridgedAssetsSheet = ({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredTransfers.map((transfer) => {
+                      {transfers.map((transfer) => {
                         const tokenMeta =
                           transfer.direction === "in"
                             ? ethTokenMap.get(transfer.asset.toLowerCase())
@@ -521,7 +565,7 @@ export const BridgedAssetsSheet = ({
                   </Table>
                 </TableShell>
                 <div className="space-y-3 md:hidden">
-                  {filteredTransfers.map((transfer) => {
+                  {transfers.map((transfer) => {
                     const tokenMeta =
                       transfer.direction === "in"
                         ? ethTokenMap.get(transfer.asset.toLowerCase())
@@ -597,7 +641,7 @@ export const BridgedAssetsSheet = ({
                               </a>
                             )}
                           </div>
-                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center justify-between gap-2">
                             <span>Receiver</span>
                             {transfer.direction === "out" &&
                             transfer.sender.toLowerCase() ===
@@ -625,6 +669,64 @@ export const BridgedAssetsSheet = ({
                     );
                   })}
                 </div>
+                {totalPages > 1 ? (
+                  <Pagination className="pt-2">
+                    <PaginationContent>
+                      <PaginationItem>
+                        <PaginationPrevious
+                          href="#"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            if (currentPage > 1) {
+                              setCurrentPage((page) => page - 1);
+                            }
+                          }}
+                          className={
+                            currentPage === 1
+                              ? "pointer-events-none opacity-50"
+                              : undefined
+                          }
+                        />
+                      </PaginationItem>
+                      {pageItems.map((item, index) =>
+                        item === "ellipsis" ? (
+                          <PaginationItem key={`ellipsis-${index}`}>
+                            <PaginationEllipsis />
+                          </PaginationItem>
+                        ) : (
+                          <PaginationItem key={`page-${item}`}>
+                            <PaginationLink
+                              href="#"
+                              isActive={item === currentPage}
+                              onClick={(event) => {
+                                event.preventDefault();
+                                setCurrentPage(item);
+                              }}
+                            >
+                              {item}
+                            </PaginationLink>
+                          </PaginationItem>
+                        ),
+                      )}
+                      <PaginationItem>
+                        <PaginationNext
+                          href="#"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            if (currentPage < totalPages) {
+                              setCurrentPage((page) => page + 1);
+                            }
+                          }}
+                          className={
+                            currentPage === totalPages
+                              ? "pointer-events-none opacity-50"
+                              : undefined
+                          }
+                        />
+                      </PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
+                ) : null}
               </>
             )}
           </div>
