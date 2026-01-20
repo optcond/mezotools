@@ -103,6 +103,7 @@ export const BridgedAssetsSheet = ({
   >("all");
   const [currentPage, setCurrentPage] = useState(1);
   const transfersPerPage = 30;
+  const [totalTransfers, setTotalTransfers] = useState(0);
 
   const query = useQuery({
     queryKey: ["bridge-assets"],
@@ -166,8 +167,13 @@ export const BridgedAssetsSheet = ({
     [assets],
   );
   const transfers = transfersQuery.data?.data ?? [];
-  const totalTransfers = transfersQuery.data?.count ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalTransfers / transfersPerPage));
+
+  useEffect(() => {
+    if (typeof transfersQuery.data?.count === "number") {
+      setTotalTransfers(transfersQuery.data.count);
+    }
+  }, [transfersQuery.data?.count]);
 
   useEffect(() => {
     setCurrentPage(1);

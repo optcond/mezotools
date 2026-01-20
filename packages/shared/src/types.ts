@@ -82,6 +82,10 @@ export const MezoTokens: Record<string, { address: string; decimals: number }> =
       address: "0x3D4b1b884A7a1E59fE8589a3296EC8f8cBB6f279",
       decimals: 18,
     },
+    mUSDe: {
+      address: "0xdf6542260a9F768f07030E4895083F804241F4C4",
+      decimals: 18,
+    },
   };
 
 export const EthTokens: Record<string, { address: string; decimals: number }> =
