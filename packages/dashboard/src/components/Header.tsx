@@ -108,6 +108,16 @@ export const Header = ({
                 Borrow on Mezo
               </a>
             </Button>
+            {onTrovesClick ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="border border-primary bg-transparent text-primary hover:bg-primary/10 hover:text-primary"
+                onClick={onTrovesClick}
+              >
+                Troves
+              </Button>
+            ) : null}
             {/* <Button
               size="sm"
               variant="ghost"
@@ -122,7 +132,7 @@ export const Header = ({
               className="hidden border border-primary bg-transparent text-primary hover:bg-primary/10 hover:text-primary sm:inline-flex"
               onClick={onBridgedAssetsClick}
             >
-              Bridged assets
+              Bridge
             </Button>
             <Button
               size="sm"
@@ -148,24 +158,13 @@ export const Header = ({
             >
               Bribes
             </Button>
-            {onTrovesClick ? (
-              <Button
-                size="sm"
-                variant="ghost"
-                className="border border-primary bg-transparent text-primary hover:bg-primary/10 hover:text-primary"
-                onClick={onTrovesClick}
-              >
-                Troves
-              </Button>
-            ) : null}
             <Button
               size="sm"
               variant="ghost"
               className="hidden border border-primary bg-transparent text-primary hover:bg-primary/10 hover:text-primary sm:inline-flex"
               onClick={onCustomizeClick}
             >
-              <SlidersHorizontal className="mr-2 h-4 w-4" />
-              Customize
+              <SlidersHorizontal className="h-4 w-4" />
             </Button>
             <Button
               asChild
