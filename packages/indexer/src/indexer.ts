@@ -29,6 +29,7 @@ import { mainnet } from "viem/chains";
 import { ViemAdapter } from "@cowprotocol/sdk-viem-adapter";
 import { TradingSdk } from "@cowprotocol/sdk-trading";
 import { SupportedChainId } from "@cowprotocol/cow-sdk";
+import { BlockFetcher } from "@mtools/shared/src/lib/blockFetcher";
 
 interface IndexerDependencies {
   repository: SupabaseRepository;
@@ -100,9 +101,11 @@ export class Indexer {
 
     // bridgeAssetFetcher
     const bridgeAssetFetcher = new BridgeAssetFetcher(ethClient);
+
+    const blockFetcher = new BlockFetcher(mezoClient);
     const gaugesFetcher = new GaugesFetcher(mezoClient);
-    const bridgeChecker = new BridgeChecker(mezoClient);
-    const contractChecker = new ContractChecker(mezoClient);
+    const bridgeChecker = new BridgeChecker(mezoClient, blockFetcher);
+    const contractChecker = new ContractChecker(mezoClient, blockFetcher);
 
     // repository
     const supabaseClient = createSupabase({
@@ -288,12 +291,11 @@ export class Indexer {
       `Indexing contract creations from block ${startBlock} to ${currentBlock}`,
     );
 
-    const creations = await this.deps.contractChecker.getContractCreationsInRange(
-      {
+    const creations =
+      await this.deps.contractChecker.getContractCreationsInRange({
         fromBlock: BigInt(startBlock),
         toBlock: BigInt(currentBlock),
-      },
-    );
+      });
 
     if (creations.length === 0) {
       console.log("No contract creations found in range");
