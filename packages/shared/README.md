@@ -5,7 +5,7 @@ Shared is the TypeScript toolbox that every other package depends on. It central
 ## Exposed modules
 
 - **Network + types** - `MezoChain`, `MezoChainTestnet`, token metadata (`MezoTokens`, `EthTokens`), trove / bridge / Supabase row types, and ABI exports.
-- **Fetchers** - `TroveFetcher`, `TroveFetcherWrapper`, `PriceFeedFetcher`, `BridgeAssetFetcher`, `BridgeChecker`, `BlockFetcher`, `CowFiFetcher`, `GaugesFetcher`.
+- **Fetchers** - `TroveFetcher`, `TroveFetcherWrapper`, `PriceFeedFetcher`, `BridgeAssetFetcher`, `BridgeChecker`, `ContractChecker`, `BlockFetcher`, `CowFiFetcher`, `GaugesFetcher`.
 - **Supabase repository** - `createSupabase` and `SupabaseRepository` wrap inserts/updates for every table the indexer maintains, including bridge transfers and gauge state.
 - **Execution helpers** - `RedemptionMaker` computes redemption hints, simulations, and transactions using the fetchers above.
 
@@ -87,7 +87,19 @@ const transfers = await bridgeChecker.getBridgeTransfersInRange({
 await repository.upsertBridgeTransfers(transfers);
 ```
 
-### 5) Gauges
+### 5) Contract creations (Mezo side)
+
+```ts
+const contractChecker = new ContractChecker(client);
+const currentBlock = await client.getBlockNumber();
+const creations = await contractChecker.getContractCreationsInRange({
+  fromBlock: currentBlock - 100n,
+  toBlock: currentBlock,
+});
+await repository.upsertContractCreations(creations);
+```
+
+### 6) Gauges
 
 ```ts
 const gaugesFetcher = new GaugesFetcher(client);
@@ -98,7 +110,7 @@ const totalVotes = await gaugesFetcher.getTotalVotingPower();
 const totalVeSupply = await gaugesFetcher.getTotalVeSupply();
 ```
 
-### 6) CowFi (Ethereum side)
+### 7) CowFi (Ethereum side)
 
 ```ts
 const account = privateKeyToAccount(process.env.COW_FI_PK as `0x${string}`);
@@ -112,7 +124,7 @@ const cowFi = new CowFiFetcher(cowFiTradingSDK);
 const musdToUsdcQuote = await cowFi.getMUSDSellQuote();
 ```
 
-### 7) Redemption maker
+### 8) Redemption maker
 
 ```ts
 // You need a WalletClient to sign and send the redemption transaction.
@@ -146,6 +158,7 @@ packages/shared
 |   |-- lib/
 |   |   |-- bridgeAssetFetcher.ts
 |   |   |-- bridgeChecker.ts
+|   |   |-- contractChecker.ts
 |   |   |-- blockFetcher.ts
 |   |   |-- cowFiFetcher.ts
 |   |   |-- gaugesFetcher.ts
