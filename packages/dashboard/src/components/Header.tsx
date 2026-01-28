@@ -54,6 +54,7 @@ interface HeaderProps {
   btcPrice: number;
   isSyncing?: boolean;
   onBridgedAssetsClick?: () => void;
+  onContractsClick?: () => void;
   onDebtCalculatorClick?: () => void;
   onSwapClick?: () => void;
   onRedeemClick?: () => void;
@@ -69,6 +70,7 @@ export const Header = ({
   btcPrice,
   isSyncing,
   onBridgedAssetsClick,
+  onContractsClick,
   onDebtCalculatorClick,
   onSwapClick,
   onRedeemClick,
@@ -129,14 +131,6 @@ export const Header = ({
             <Button
               size="sm"
               variant="ghost"
-              className="hidden border border-primary bg-transparent text-primary hover:bg-primary/10 hover:text-primary sm:inline-flex"
-              onClick={onBridgedAssetsClick}
-            >
-              Bridge
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
               className="border border-primary bg-transparent text-primary hover:bg-primary/10 hover:text-primary"
               onClick={onDebtCalculatorClick}
             >
@@ -157,6 +151,22 @@ export const Header = ({
               onClick={onBribesClick}
             >
               Bribes
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="hidden border border-primary bg-transparent text-primary hover:bg-primary/10 hover:text-primary sm:inline-flex"
+              onClick={onBridgedAssetsClick}
+            >
+              Bridge
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="hidden border border-primary bg-transparent text-primary hover:bg-primary/10 hover:text-primary sm:inline-flex"
+              onClick={onContractsClick}
+            >
+              Contracts
             </Button>
             <Button
               size="sm"

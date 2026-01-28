@@ -15,6 +15,7 @@ import { useSearchParams } from "react-router-dom";
 
 import { Header } from "@/components/Header";
 import { BridgedAssetsSheet } from "@/components/BridgedAssetsSheet";
+import { ContractsSheet } from "@/components/ContractsSheet";
 import { DebtCalculatorSheet } from "@/components/DebtCalculatorSheet";
 import { RedemptionSheet } from "@/components/RedemptionSheet";
 import { BribesSheet } from "@/components/BribesSheet";
@@ -195,6 +196,7 @@ const Dashboard = () => {
   const sheetParam = searchParams.get("panel");
   const activeSheet =
     sheetParam === "bridged-assets" ||
+    sheetParam === "contracts" ||
     sheetParam === "debt-calculator" ||
     sheetParam === "redemption" ||
     sheetParam === "bribes" ||
@@ -457,6 +459,7 @@ const Dashboard = () => {
         btcPrice={systemMetrics.btcPrice}
         isSyncing={isRefreshing}
         onBridgedAssetsClick={() => setSheetParam("bridged-assets")}
+        onContractsClick={() => setSheetParam("contracts")}
         onDebtCalculatorClick={() => setSheetParam("debt-calculator")}
         onRedeemClick={() => setSheetParam("redemption")}
         onBribesClick={() => setSheetParam("bribes")}
@@ -515,6 +518,10 @@ const Dashboard = () => {
       <BridgedAssetsSheet
         open={activeSheet === "bridged-assets"}
         onOpenChange={handleSheetOpenChange("bridged-assets")}
+      />
+      <ContractsSheet
+        open={activeSheet === "contracts"}
+        onOpenChange={handleSheetOpenChange("contracts")}
       />
       <DebtCalculatorSheet
         open={activeSheet === "debt-calculator"}
@@ -583,6 +590,16 @@ const Dashboard = () => {
               }}
             >
               Bridged assets
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setIsActionsOpen(false);
+                setSheetParam("contracts");
+              }}
+            >
+              Contracts
             </Button>
             <Button
               type="button"

@@ -13,6 +13,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import {
   BridgeAssetFetcher,
   BridgeChecker,
+  ContractChecker,
   CowFiFetcher,
   GaugesFetcher,
   MezoChain,
@@ -39,6 +40,7 @@ interface IndexerDependencies {
   ethClient: PublicClient;
   gaugesFetcher: GaugesFetcher;
   bridgeChecker: BridgeChecker;
+  contractChecker: ContractChecker;
 }
 
 export class Indexer {
@@ -100,6 +102,7 @@ export class Indexer {
     const bridgeAssetFetcher = new BridgeAssetFetcher(ethClient);
     const gaugesFetcher = new GaugesFetcher(mezoClient);
     const bridgeChecker = new BridgeChecker(mezoClient);
+    const contractChecker = new ContractChecker(mezoClient);
 
     // repository
     const supabaseClient = createSupabase({
@@ -118,6 +121,7 @@ export class Indexer {
       ethClient,
       gaugesFetcher,
       bridgeChecker,
+      contractChecker,
     });
   }
 
@@ -234,6 +238,7 @@ export class Indexer {
     );
 
     await this._processBridgeTransfers(lastKnownBlock, currentBlockNumber);
+    await this._processContractCreations(lastKnownBlock, currentBlockNumber);
 
     await this.deps.repository.updateIndexerState(currentBlockNumber);
     console.log(`Recorded indexer state to block ${currentBlockNumber}`);
@@ -266,6 +271,37 @@ export class Indexer {
 
     await this.deps.repository.upsertBridgeTransfers(transfers);
     console.log(`Upserted ${transfers.length} bridge transfers`);
+  }
+
+  private async _processContractCreations(
+    lastKnownBlock: number,
+    currentBlock: number,
+  ): Promise<void> {
+    const startBlock = Math.max(lastKnownBlock + 1, 0);
+
+    if (startBlock > currentBlock) {
+      console.log("No new contract creations to index");
+      return;
+    }
+
+    console.log(
+      `Indexing contract creations from block ${startBlock} to ${currentBlock}`,
+    );
+
+    const creations = await this.deps.contractChecker.getContractCreationsInRange(
+      {
+        fromBlock: BigInt(startBlock),
+        toBlock: BigInt(currentBlock),
+      },
+    );
+
+    if (creations.length === 0) {
+      console.log("No contract creations found in range");
+      return;
+    }
+
+    await this.deps.repository.upsertContractCreations(creations);
+    console.log(`Upserted ${creations.length} contract creations`);
   }
 
   private async _processLiqsAndRedemps(

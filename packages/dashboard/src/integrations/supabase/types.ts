@@ -266,6 +266,39 @@ export type Database = {
         }
         Relationships: []
       }
+      contract_creations: {
+        Row: {
+          block_number: number
+          block_timestamp: string
+          contract_address: string
+          creator: string
+          id: string
+          transaction_index: number
+          tx_hash: string
+          tx_status: string
+        }
+        Insert: {
+          block_number?: number
+          block_timestamp?: string
+          contract_address?: string
+          creator?: string
+          id: string
+          transaction_index?: number
+          tx_hash?: string
+          tx_status?: string
+        }
+        Update: {
+          block_number?: number
+          block_timestamp?: string
+          contract_address?: string
+          creator?: string
+          id?: string
+          transaction_index?: number
+          tx_hash?: string
+          tx_status?: string
+        }
+        Relationships: []
+      }
       gauge_state: {
         Row: {
           epoch_end: string

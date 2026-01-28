@@ -10,6 +10,8 @@ export { createSupabase, SupabaseRepository } from "./lib/supabase";
 export { RedemptionMaker } from "./lib/redemptionMaker";
 export { BridgeChecker } from "./lib/bridgeChecker";
 export type { BridgeTransfer } from "./lib/bridgeChecker";
+export { ContractChecker } from "./lib/contractChecker";
+export type { ContractCreation } from "./lib/contractChecker";
 export type {
   RedemptionResult,
   RedemptionSimulation,

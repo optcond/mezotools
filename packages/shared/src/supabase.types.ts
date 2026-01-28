@@ -110,6 +110,17 @@ export interface BridgeTransferRow {
   sequence_number: string | null;
 }
 
+export interface ContractCreationRow {
+  id: string;
+  contract_address: string;
+  creator: string;
+  tx_status: "success" | "failed";
+  tx_hash: string;
+  block_number: number;
+  transaction_index: number;
+  block_timestamp: string;
+}
+
 export interface GaugeStateRow {
   key: string;
   epoch_end: number;

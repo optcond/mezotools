@@ -148,3 +148,19 @@ create table public.bridge_transfers (
 
 create index IF not exists bridge_transfers_block_idx on public.bridge_transfers using btree (block_number desc, transaction_index desc, transfer_index desc) TABLESPACE pg_default;
 create index IF not exists bridge_transfers_asset_idx on public.bridge_transfers using btree (asset) TABLESPACE pg_default;
+
+create table public.contract_creations (
+  id text not null,
+  contract_address text not null,
+  creator text not null,
+  tx_status text not null,
+  tx_hash text not null,
+  block_number bigint not null,
+  transaction_index integer not null,
+  block_timestamp timestamp with time zone not null,
+  constraint contract_creations_pkey primary key (id)
+) TABLESPACE pg_default;
+
+create index IF not exists contract_creations_block_idx on public.contract_creations using btree (block_number desc, transaction_index desc) TABLESPACE pg_default;
+create index IF not exists contract_creations_creator_idx on public.contract_creations using btree (creator) TABLESPACE pg_default;
+create index IF not exists contract_creations_address_idx on public.contract_creations using btree (contract_address) TABLESPACE pg_default;

@@ -12,6 +12,7 @@ import type {
   DailyMetricsRow,
   BridgeAssetRow,
   BridgeTransferRow,
+  ContractCreationRow,
   GaugeStateRow,
   GaugeRow,
   GaugeBribeRow,
@@ -23,6 +24,7 @@ import type {
 } from "../trove.types";
 import type { BridgeAssetBalance } from "../bridge.types";
 import type { BridgeTransfer } from "./bridgeChecker";
+import type { ContractCreation } from "./contractChecker";
 import type { GaugeIncentive } from "./gaugesFetcher";
 
 export function createSupabase(options: SupabaseOptions): SupabaseClient {
@@ -409,6 +411,33 @@ export class SupabaseRepository {
 
     if (error) {
       throw new Error(`Failed to upsert bridge transfers: ${error.message}`);
+    }
+  }
+
+  async upsertContractCreations(
+    creations: ContractCreation[]
+  ): Promise<void> {
+    if (creations.length === 0) {
+      return;
+    }
+
+    const rows: ContractCreationRow[] = creations.map((creation) => ({
+      id: creation.transactionHash,
+      contract_address: creation.contractAddress.toLowerCase(),
+      creator: creation.creator.toLowerCase(),
+      tx_status: creation.txStatus,
+      tx_hash: creation.transactionHash,
+      block_number: Number(creation.blockNumber),
+      transaction_index: creation.transactionIndex,
+      block_timestamp: new Date(creation.blockTimestamp * 1000).toISOString(),
+    }));
+
+    const { error } = await this.from("contract_creations").upsert(rows, {
+      onConflict: "id",
+    });
+
+    if (error) {
+      throw new Error(`Failed to upsert contract creations: ${error.message}`);
     }
   }
 
