@@ -268,6 +268,23 @@ export class SupabaseRepository {
     return total / prices.length;
   }
 
+  async getLatestMusdToUsdcPrice(): Promise<number | null> {
+    const { data, error } = await this.from("system_snapshots")
+      .select("musd_to_usdc_price")
+      .not("musd_to_usdc_price", "is", null)
+      .order("recorded_at", { ascending: false })
+      .limit(1)
+      .maybeSingle<SystemSnapshotPriceRow>();
+
+    if (error && error.code !== "PGRST116") {
+      throw new Error(
+        `Failed to fetch latest mUSD/USDC price snapshot: ${error.message}`
+      );
+    }
+
+    return data?.musd_to_usdc_price ?? null;
+  }
+
   async recordPrice(
     price: number,
     source: string,

@@ -12,7 +12,7 @@ export class CowFiFetcher {
   }> {
     const pAmount = parseUnits(
       amount.toString(),
-      EthTokens.MUSD.decimals
+      EthTokens.MUSD.decimals,
     ).toString();
 
     const { quoteResults } = await this.tradingSDK.getQuote({
@@ -28,14 +28,14 @@ export class CowFiFetcher {
       sellAmount: Number(
         formatUnits(
           quoteResults.amountsAndCosts.afterNetworkCosts.sellAmount,
-          EthTokens.MUSD.decimals
-        )
+          EthTokens.MUSD.decimals,
+        ),
       ),
       buyAmount: Number(
         formatUnits(
           quoteResults.amountsAndCosts.afterNetworkCosts.buyAmount,
-          EthTokens.USDC.decimals
-        )
+          EthTokens.USDC.decimals,
+        ),
       ),
     };
   }

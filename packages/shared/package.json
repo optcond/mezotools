@@ -8,9 +8,9 @@
     "test": "vitest"
   },
   "dependencies": {
-    "@cowprotocol/cow-sdk": "^7.0.9",
-    "@cowprotocol/sdk-trading": "^0.4.0",
-    "@cowprotocol/sdk-viem-adapter": "^0.2.0",
+    "@cowprotocol/cow-sdk": "^7.3.5",
+    "@cowprotocol/sdk-trading": "^0.10.1",
+    "@cowprotocol/sdk-viem-adapter": "^0.3.6",
     "@supabase/supabase-js": "^2.49.1",
     "@types/node": "^22.15.24",
     "dotenv": "^16.5.0",

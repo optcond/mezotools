@@ -153,7 +153,6 @@ export class Indexer {
       bridgeAssets,
       systemState,
       troves,
-      swapData,
       gaugeIncentives,
       epochTiming,
       totalVeSupply,
@@ -169,9 +168,6 @@ export class Indexer {
       /* troves state */
       this.deps.dataManager.getSystemState(btcPrice),
       this.deps.dataManager.getTrovesWithData(btcPrice),
-
-      /* cowfi swap calc */
-      this.deps.cowFi.getMUSDSellQuote(),
 
       /* gauge incentives */
       this.deps.gaugesFetcher.fetchGaugeIncentives({
@@ -189,8 +185,31 @@ export class Indexer {
       `Fetched ${troves.length} troves, TCR: ${systemState.ratio}, BTC Price: ${systemState.btcPrice}`,
     );
 
-    const musdToUsdcPrice = swapData.buyAmount;
-    console.log(`Fetched mUSD to USDC price: ${musdToUsdcPrice}`);
+    let musdToUsdcPrice: number | null = null;
+    try {
+      const swapData = await this.deps.cowFi.getMUSDSellQuote();
+      musdToUsdcPrice = swapData.buyAmount;
+      console.log(`Fetched mUSD to USDC price: ${musdToUsdcPrice}`);
+    } catch (error) {
+      console.warn(
+        `Failed to fetch mUSD/USDC quote from CowFi, using last known price: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      try {
+        musdToUsdcPrice = await this.deps.repository.getLatestMusdToUsdcPrice();
+      } catch (fallbackError) {
+        console.warn(
+          `Failed to load last known mUSD/USDC price: ${fallbackError instanceof Error ? fallbackError.message : String(fallbackError)}`,
+        );
+      }
+
+      if (musdToUsdcPrice !== null) {
+        console.log(`Loaded last known mUSD to USDC price: ${musdToUsdcPrice}`);
+      } else {
+        console.warn(
+          "mUSD to USDC price unavailable: no previous snapshot found",
+        );
+      }
+    }
 
     const systemSnapshot: SystemSnapshot = {
       ...systemState,
@@ -354,7 +373,7 @@ export class Indexer {
   private async _process4hHistory(
     currentBlock: number,
     btcPrice: number,
-    musdToUsdcPrice: number,
+    musdToUsdcPrice: number | null,
   ) {
     const [lastBtcOracleBlockValue, lastMusd4hBlockValue] = await Promise.all([
       this.deps.repository.getLastPriceFeedBlock("btc_oracle"),
@@ -372,14 +391,18 @@ export class Indexer {
         currentBlock,
       );
       console.log(`Recorded BTC price ${btcPrice} ${currentBlock}`);
-      await this.deps.repository.recordPrice(
-        Math.round(musdToUsdcPrice),
-        "musd_usdc",
-        currentBlock,
-      );
-      console.log(
-        `Recorded MUSD price ${Math.round(musdToUsdcPrice)} ${currentBlock}`,
-      );
+      if (musdToUsdcPrice !== null) {
+        await this.deps.repository.recordPrice(
+          Math.round(musdToUsdcPrice),
+          "musd_usdc",
+          currentBlock,
+        );
+        console.log(
+          `Recorded MUSD price ${Math.round(musdToUsdcPrice)} ${currentBlock}`,
+        );
+      } else {
+        console.log("Skipped recording MUSD price: value unavailable");
+      }
     }
 
     const shouldRecordFourHourPrice =
