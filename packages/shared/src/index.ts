@@ -3,6 +3,7 @@ export type { BridgeAssetBalance } from "./lib/bridgeAssetFetcher";
 export { TroveFetcher } from "./lib/troveFetcher";
 export { TroveFetcherWrapper } from "./lib/troveFetcherWrapper";
 export { CowFiFetcher } from "./lib/cowFiFetcher";
+export { KyberSwapFetcher } from "./lib/kyberSwapFetcher";
 export { PriceFeedFetcher } from "./lib/priceFeedFetcher";
 export { GaugesFetcher } from "./lib/gaugesFetcher";
 export type { GaugeIncentive, GaugeBribeTokenReward } from "./lib/gaugesFetcher";

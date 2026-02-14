@@ -9,13 +9,12 @@ import {
   HttpTransport,
   PublicClient,
 } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
 import {
   BridgeAssetFetcher,
   BridgeChecker,
   ContractChecker,
-  CowFiFetcher,
   GaugesFetcher,
+  KyberSwapFetcher,
   MezoChain,
   ProviderType,
   TroveFetcher,
@@ -26,17 +25,13 @@ import {
   PriceFeedFetcher,
 } from "@mtools/shared";
 import { mainnet } from "viem/chains";
-import { ViemAdapter } from "@cowprotocol/sdk-viem-adapter";
-import { TradingSdk } from "@cowprotocol/sdk-trading";
-import { SupportedChainId } from "@cowprotocol/cow-sdk";
 import { BlockFetcher } from "@mtools/shared/src/lib/blockFetcher";
 
 interface IndexerDependencies {
   repository: SupabaseRepository;
-  cowFiTradingSDK: TradingSdk;
   bridgeAssetFetcher: BridgeAssetFetcher;
   dataManager: TroveFetcherWrapper;
-  cowFi: CowFiFetcher;
+  kyberSwap: KyberSwapFetcher;
   mezoClient: PublicClient;
   ethClient: PublicClient;
   gaugesFetcher: GaugesFetcher;
@@ -89,15 +84,7 @@ export class Indexer {
 
     const dataManager = new TroveFetcherWrapper(troveFetcher, priceFeedFetcher);
 
-    // cowFiTradingSDK
-    const account = privateKeyToAccount(config.cowFiPk);
-    const adapter = new ViemAdapter({ provider: ethClient, signer: account });
-    const cowFiTradingSDK = new TradingSdk(
-      { appCode: "mezo-tools", chainId: SupportedChainId.MAINNET },
-      {},
-      adapter,
-    );
-    const cowFi = new CowFiFetcher(cowFiTradingSDK);
+    const kyberSwap = new KyberSwapFetcher();
 
     // bridgeAssetFetcher
     const bridgeAssetFetcher = new BridgeAssetFetcher(ethClient);
@@ -116,10 +103,9 @@ export class Indexer {
 
     return new Indexer(config, {
       repository,
-      cowFiTradingSDK,
       bridgeAssetFetcher,
       dataManager,
-      cowFi,
+      kyberSwap,
       mezoClient,
       ethClient,
       gaugesFetcher,
@@ -187,12 +173,12 @@ export class Indexer {
 
     let musdToUsdcPrice: number | null = null;
     try {
-      const swapData = await this.deps.cowFi.getMUSDSellQuote();
+      const swapData = await this.deps.kyberSwap.getMUSDSellQuote();
       musdToUsdcPrice = swapData.buyAmount;
       console.log(`Fetched mUSD to USDC price: ${musdToUsdcPrice}`);
     } catch (error) {
       console.warn(
-        `Failed to fetch mUSD/USDC quote from CowFi, using last known price: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to fetch mUSD/USDC quote from KyberSwap, using last known price: ${error instanceof Error ? error.message : String(error)}`,
       );
       try {
         musdToUsdcPrice = await this.deps.repository.getLatestMusdToUsdcPrice();

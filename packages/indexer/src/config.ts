@@ -76,6 +76,5 @@ export function loadConfig(env: NodeJS.ProcessEnv) {
     supabaseServiceKey,
     liquidationChunkSize: parsePositiveInt(env.LIQUIDATION_CHUNK_SIZE, 1_000),
     redemptionChunkSize: parsePositiveInt(env.REDEMPTION_CHUNK_SIZE, 1_000),
-    cowFiPk: env.COW_FI_PK as `0x${string}`,
   };
 }

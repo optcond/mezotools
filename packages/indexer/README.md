@@ -1,12 +1,12 @@
 # @mtools/indexer
 
-The indexer is the backend cron that keeps Supabase in sync with on-chain Mezo state and CowSwap pricing. Every run pulls the latest troves, bridge balances, bridge transfers, liquidations, redemptions, and price feed snapshots, then persists that data so the dashboard and other tools stay current.
+The indexer is the backend cron that keeps Supabase in sync with on-chain Mezo state and KyberSwap pricing. Every run pulls the latest troves, bridge balances, bridge transfers, liquidations, redemptions, and price feed snapshots, then persists that data so the dashboard and other tools stay current.
 
 ## Responsibilities
 
 - **State ingestion** - connects to Mezo RPC (WebSocket or HTTP) plus Ethereum mainnet to fetch trove data, bridge assets, bridge transfers, and block numbers.
 - **Risk + history data** - snapshots system metrics, 4h averages, and BTC price feeds for charting.
-- **Activity tracking** - stores the most recent bridge transfers, liquidations, and redemptions (including CowFi swap quotes) and tracks the last processed block inside `indexer_state`.
+- **Activity tracking** - stores the most recent bridge transfers, liquidations, and redemptions (including KyberSwap swap quotes) and tracks the last processed block inside `indexer_state`.
 - **Shared tooling** - reuses the fetchers, adapters, and Supabase repository exported from `@mtools/shared`, so all protocol constants live in one place.
 
 ## Quick start
@@ -41,11 +41,10 @@ All values are parsed in `src/config.ts`.
 | `ENVIRONMENT` | No (defaults to `dev`) | `dev` uses the `_DEV` Supabase credentials; `prod` uses the production pair. |
 | `MEZO_RPC_URL` | Yes | RPC endpoint for the Mezo chain. Supports `http(s)` and `wss`. |
 | `MEZO_RPC_TYPE` | No | `http` (default) or `websocket`. |
-| `ETHEREUM_RPC_URL` | Yes | Ethereum mainnet RPC (used for CowSwap + bridge asset lookups). |
+| `ETHEREUM_RPC_URL` | Yes | Ethereum mainnet RPC (used for KyberSwap + bridge asset lookups). |
 | `ETHEREUM_RPC_TYPE` | No | `http` (default) or `websocket`. |
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Yes (prod) | URL + service role key for the production project. |
 | `SUPABASE_URL_DEV`, `SUPABASE_SERVICE_ROLE_KEY_DEV` | Yes (dev) | URL + service role key for the dev project. Falls back to `SUPABASE_SERVICE_KEY` if the role key is missing. |
-| `COW_FI_PK` | Yes | Private key used to authenticate with the CowFi trading SDK. |
 | `LIQUIDATION_CHUNK_SIZE` | No | Batch size when backfilling historic liquidations (default `1000`). |
 | `REDEMPTION_CHUNK_SIZE` | No | Batch size when backfilling historic redemptions (default `1000`). |
 | `INDEXER_INTERVAL_SECONDS` | No | Only used by the Docker entrypoint loop; sleeps this many seconds between runs (default `60`). |
@@ -73,7 +72,7 @@ ENV_FILE=.env make run IMAGE_NAME=mezo-indexer
 - `price_feeds`
 - `indexer_state` (stores the latest processed block)
 
-Each run also calculates swap quotes by calling the CowFi SDK so the dashboard can convert mUSD -> USDC in real time.
+Each run also calculates swap quotes by calling KyberSwap so the dashboard can convert mUSD -> USDC in real time.
 
 ## Project layout
 
@@ -88,4 +87,4 @@ packages/indexer
 `-- tsconfig.json
 ```
 
-`Indexer.createFromEnv` wires up all dependencies (Supabase repository, fetchers, CowFi SDK, Viem clients). Extend `Indexer.run` if you need to track additional data; the shared helpers already expose the contracts and types you need.
+`Indexer.createFromEnv` wires up all dependencies (Supabase repository, fetchers, KyberSwap integration, Viem clients). Extend `Indexer.run` if you need to track additional data; the shared helpers already expose the contracts and types you need.

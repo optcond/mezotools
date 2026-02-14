@@ -8,9 +8,6 @@
     "test": "vitest"
   },
   "dependencies": {
-    "@cowprotocol/cow-sdk": "^7.3.5",
-    "@cowprotocol/sdk-trading": "^0.10.1",
-    "@cowprotocol/sdk-viem-adapter": "^0.3.6",
     "@mtools/shared": "workspace:*",
     "@supabase/supabase-js": "^2.49.1",
     "@types/node": "^22.15.24",

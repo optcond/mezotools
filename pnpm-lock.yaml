@@ -231,15 +231,6 @@ importers:
 
   packages/indexer:
     dependencies:
-      '@cowprotocol/cow-sdk':
-        specifier: ^7.3.5
-        version: 7.3.5(@openzeppelin/merkle-tree@1.0.8)(ajv@8.17.1)(cross-fetch@4.1.0)(ipfs-only-hash@4.0.0)(multiformats@9.9.0)
-      '@cowprotocol/sdk-trading':
-        specifier: ^0.10.1
-        version: 0.10.1(ajv@8.17.1)(cross-fetch@4.1.0)(ipfs-only-hash@4.0.0)(multiformats@9.9.0)
-      '@cowprotocol/sdk-viem-adapter':
-        specifier: ^0.3.6
-        version: 0.3.6(viem@2.39.3(bufferutil@4.1.0)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@4.2.1))
       '@mtools/shared':
         specifier: workspace:*
         version: link:../shared
@@ -12005,7 +11996,7 @@ snapshots:
       '@types/uuid': 8.3.4
       '@types/ws': 8.18.1
       buffer: 6.0.3
-      eventemitter3: 5.0.1
+      eventemitter3: 5.0.4
       uuid: 8.3.2
       ws: 8.18.3(bufferutil@4.1.0)(utf-8-validate@5.0.10)
     optionalDependencies:
