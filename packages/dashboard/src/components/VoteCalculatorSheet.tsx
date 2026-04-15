@@ -5,8 +5,8 @@ import {
   usePublicClient,
   useWalletClient,
 } from "wagmi";
-import { formatUnits, type PublicClient } from "viem";
-import { Copy, RefreshCw, Vote } from "lucide-react";
+import { formatUnits, getAddress, parseUnits, type PublicClient } from "viem";
+import { Copy, RefreshCw, RotateCcw, Vote } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -25,17 +25,24 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { WalletConnectButton } from "@/components/WalletConnectButton";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import {
-  MezoBlockChainExplorer,
+  MEZO_BC_EXPLORER,
   MezoChain,
   VeVoteFetcher,
   VoterAbi,
-  ZeroAddress,
+  ZERO_ADDRESS,
+  bigintSharePct,
   fetchMezoRewardTokenMarkets,
+  formatTokenAmount,
+  formatUsd,
+  formatVotingPower,
+  gaugeRowToIncentive,
   getMezoContracts,
+  incentivesToOpportunities,
+  normalizeWeightsToVotingPower,
+  projectGaugeBribeRewards,
   shortenAddress,
 } from "@mtools/shared";
 import type {
@@ -46,154 +53,13 @@ import type {
   VeLockSummary,
 } from "@mtools/shared";
 
-// ── constants ──────────────────────────────────────────────────────────────
-const ZERO_ADDRESS = ZeroAddress;
-const EXPLORER = MezoBlockChainExplorer;
-
-// ── pure helpers (mirroring App.tsx) ──────────────────────────────────────
-
-const formatBig = (value: bigint, digits = 4) =>
-  Number(formatUnits(value, 18)).toLocaleString("en-US", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: digits,
-  });
-
-const formatTokenAmount = (value: bigint, decimals: number, digits = 6) =>
-  Number(formatUnits(value, decimals)).toLocaleString("en-US", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: digits,
-  });
-
-const formatUsd = (value: number, digits = 2) =>
-  value.toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: digits,
-  });
-
-const mergeRewardRows = (
-  rows: GaugeBribeTokenReward[],
-): GaugeBribeTokenReward[] =>
-  Object.values(
-    rows.reduce<Record<string, GaugeBribeTokenReward>>((acc, row) => {
-      const key = row.token.toLowerCase();
-      const current = acc[key] ?? { ...row, amount: 0n };
-      return {
-        ...acc,
-        [key]: { ...current, amount: current.amount + row.amount },
-      };
-    }, {}),
-  );
-
-const projectRewardRows = (
-  rows: GaugeBribeTokenReward[],
-  vote: bigint,
-  totalVotes: bigint,
-): GaugeBribeTokenReward[] => {
-  if (vote <= 0n) return [];
-  const denominator = totalVotes + vote;
-  if (denominator <= 0n) return [];
-  return mergeRewardRows(rows)
-    .map((row) => ({ ...row, amount: (row.amount * vote) / denominator }))
-    .filter((row) => row.amount > 0n);
-};
-
-const normalizeWeightsToVotingPower = (
-  weightsByPool: Record<string, bigint>,
-  votingPower: bigint,
-): Record<string, bigint> => {
-  if (votingPower <= 0n) return {};
-  const entries = Object.entries(weightsByPool).filter(([, w]) => w > 0n);
-  if (!entries.length) return {};
-  const totalWeight = entries.reduce((acc, [, w]) => acc + w, 0n);
-  if (totalWeight <= 0n) return {};
-  const normalized: Record<string, bigint> = {};
-  const remainders: { pool: string; remainder: bigint }[] = [];
-  let assigned = 0n;
-  for (const [pool, weight] of entries) {
-    const precise = weight * votingPower;
-    const vote = precise / totalWeight;
-    normalized[pool] = vote;
-    assigned += vote;
-    remainders.push({ pool, remainder: precise % totalWeight });
-  }
-  let left = votingPower - assigned;
-  if (left > 0n) {
-    remainders.sort((a, b) => (a.remainder > b.remainder ? -1 : 1));
-    let idx = 0;
-    while (left > 0n) {
-      const row = remainders[idx % remainders.length];
-      normalized[row.pool] = (normalized[row.pool] ?? 0n) + 1n;
-      left -= 1n;
-      idx++;
-    }
-  }
-  return normalized;
-};
-
-const formatRewardSignalSource = (
-  source: GaugeVoteOpportunity["rewardSignalSource"],
-): string | null => {
-  switch (source) {
-    case "current":
-      return "Current epoch";
-    case "none":
-      return "No current rewards";
-    default:
-      return null;
-  }
-};
-
-// ── Supabase row → GaugeIncentive ─────────────────────────────────────────
-
-const ZERO_ADDR = "0x0000000000000000000000000000000000000000" as `0x${string}`;
-
-type GaugeSupabaseRow = Tables<"gauges">;
-type BribeJsonRow = {
-  token: string;
-  amount: string;
-  previous_epoch_amount?: string;
-  next_epoch_amount?: string;
-};
-
-const rowToGaugeIncentive = (row: GaugeSupabaseRow): GaugeIncentive => {
-  const epochStart = BigInt(row.epoch_start);
-  const toBribeTokenReward = (b: BribeJsonRow): GaugeBribeTokenReward => ({
-    token: b.token as `0x${string}`,
-    amount: BigInt(b.amount),
-    epochStart,
-    previousEpochAmount: b.previous_epoch_amount
-      ? BigInt(b.previous_epoch_amount)
-      : undefined,
-    nextEpochAmount: b.next_epoch_amount
-      ? BigInt(b.next_epoch_amount)
-      : undefined,
-  });
-  return {
-    pool: row.pool as `0x${string}`,
-    poolName: row.pool_name ?? undefined,
-    gauge: row.gauge as `0x${string}`,
-    bribe: row.bribe as `0x${string}`,
-    fee: (row.fee ?? ZERO_ADDR) as `0x${string}`,
-    votes: BigInt(row.votes),
-    duration: BigInt(row.duration),
-    epochStart,
-    rewards: ((row.bribes ?? []) as unknown as BribeJsonRow[]).map(
-      toBribeTokenReward,
-    ),
-    fees: ((row.fees ?? []) as unknown as BribeJsonRow[]).map(
-      toBribeTokenReward,
-    ),
-  };
-};
-
-// ── local types ────────────────────────────────────────────────────────────
+// ── types ──────────────────────────────────────────────────────────────────
 
 type TxState = "idle" | "pending" | "success" | "error";
+type GaugeSupabaseRow = Tables<"gauges">;
 
 type ProjectionRow = {
   pool: `0x${string}`;
-  gauge: `0x${string}`;
   vote: bigint;
   projectedRewards: GaugeBribeTokenReward[];
   projectedUsd: number;
@@ -204,6 +70,30 @@ type Projection = {
   rows: ProjectionRow[];
   totalProjectedUsd: number;
   hasUnpricedRewards: boolean;
+};
+
+// ── helpers ────────────────────────────────────────────────────────────────
+
+const formatRewardSignalSource = (
+  source: GaugeVoteOpportunity["rewardSignalSource"],
+): string | null => {
+  switch (source) {
+    case "current":
+      return "Current epoch";
+    case "none":
+      return "No rewards";
+    default:
+      return null;
+  }
+};
+
+const safeParseUnits = (value: string): bigint => {
+  try {
+    if (!value.trim()) return 0n;
+    return parseUnits(value.trim(), 18);
+  } catch {
+    return 0n;
+  }
 };
 
 // ── component ──────────────────────────────────────────────────────────────
@@ -222,31 +112,34 @@ export const VoteCalculatorSection = ({
   const activeChainId = chainId ?? MezoChain.id;
   const publicClient = usePublicClient({ chainId: activeChainId });
   const { data: walletClient } = useWalletClient({ chainId: activeChainId });
-
-  const AppContracts = useMemo(() => getMezoContracts(chainId), [chainId]);
+  const contracts = useMemo(() => getMezoContracts(chainId), [chainId]);
 
   // ── state ──────────────────────────────────────────────────────────────
   const [gauges, setGauges] = useState<GaugeVoteOpportunity[]>([]);
   const [locks, setLocks] = useState<VeLockSummary[]>([]);
   const [incentives, setIncentives] = useState<GaugeIncentive[]>([]);
   const [selectedLockId, setSelectedLockId] = useState("");
+  /** Manual veBTC VP input — decimal string, used when no lock selected */
+  const [manualVpInput, setManualVpInput] = useState("");
   const [draftWeights, setDraftWeights] = useState<Record<string, string>>({});
   const [optimalWeights, setOptimalWeights] = useState<Record<string, bigint>>(
     {},
   );
-  const [enabledPoolCalculations, setEnabledPoolCalculations] = useState<
-    Record<string, boolean>
-  >({});
-  const [rewardTokenMarkets, setRewardTokenMarkets] = useState<
-    Record<string, TokenMarket>
-  >({});
+  const [enabledPools, setEnabledPools] = useState<Record<string, boolean>>({});
+  const [tokenMarkets, setTokenMarkets] = useState<Record<string, TokenMarket>>(
+    {},
+  );
   const [maxVotingNum, setMaxVotingNum] = useState<bigint | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [txState, setTxState] = useState<TxState>("idle");
   const [txHash, setTxHash] = useState<`0x${string}` | null>(null);
+  const [sortField, setSortField] = useState<"votes" | "rewardSignal">(
+    "rewardSignal",
+  );
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
-  // ── fetchers ────────────────────────────────────────────────────────────
+  // ── fetcher ─────────────────────────────────────────────────────────────
   const vFetcher = useMemo(
     () =>
       publicClient ? new VeVoteFetcher(publicClient as PublicClient) : null,
@@ -259,18 +152,11 @@ export const VoteCalculatorSection = ({
     [locks, selectedLockId],
   );
 
-  const draftedTotal = useMemo(
-    () =>
-      Object.values(draftWeights).reduce((sum, raw) => {
-        try {
-          const parsed = raw.trim() === "" ? 0n : BigInt(raw);
-          return sum + (parsed > 0n ? parsed : 0n);
-        } catch {
-          return sum;
-        }
-      }, 0n),
-    [draftWeights],
-  );
+  /** Effective voting power: from selected lock or manual input */
+  const effectiveVotingPower = useMemo(() => {
+    if (selectedLock) return selectedLock.votingPower;
+    return safeParseUnits(manualVpInput);
+  }, [selectedLock, manualVpInput]);
 
   const draftVotesByPool = useMemo(
     () =>
@@ -288,53 +174,46 @@ export const VoteCalculatorSection = ({
     [draftWeights],
   );
 
-  const optimalVotesByPool = useMemo(
-    () =>
-      Object.fromEntries(Object.entries(optimalWeights)) as Record<
-        string,
-        bigint
-      >,
-    [optimalWeights],
+  const draftedTotal = useMemo(
+    () => Object.values(draftVotesByPool).reduce((s, v) => s + v, 0n),
+    [draftVotesByPool],
   );
 
   const effectiveDraftVotesByPool = useMemo(
-    () =>
-      normalizeWeightsToVotingPower(
-        draftVotesByPool,
-        selectedLock?.votingPower ?? 0n,
-      ),
-    [draftVotesByPool, selectedLock?.votingPower],
+    () => normalizeWeightsToVotingPower(draftVotesByPool, effectiveVotingPower),
+    [draftVotesByPool, effectiveVotingPower],
   );
 
   const effectiveOptimalVotesByPool = useMemo(
     () =>
       normalizeWeightsToVotingPower(
-        optimalVotesByPool,
-        selectedLock?.votingPower ?? 0n,
+        Object.fromEntries(Object.entries(optimalWeights)) as Record<
+          string,
+          bigint
+        >,
+        effectiveVotingPower,
       ),
-    [optimalVotesByPool, selectedLock?.votingPower],
+    [optimalWeights, effectiveVotingPower],
   );
 
   const calculationGauges = useMemo(
     () =>
-      gauges.filter(
-        (item) => enabledPoolCalculations[item.pool.toLowerCase()] !== false,
-      ),
-    [enabledPoolCalculations, gauges],
+      gauges.filter((item) => enabledPools[item.pool.toLowerCase()] !== false),
+    [enabledPools, gauges],
   );
 
   // ── token helpers ────────────────────────────────────────────────────────
   const getTokenMeta = useCallback(
     (token: `0x${string}`) => {
       const key = token.toLowerCase();
-      const market = rewardTokenMarkets[key];
+      const market = tokenMarkets[key];
       return {
         decimals: market?.decimals ?? 18,
         symbol: market?.symbol ?? shortenAddress(token),
         priceUsd: market?.priceUsd ?? null,
       };
     },
-    [rewardTokenMarkets],
+    [tokenMarkets],
   );
 
   const getRewardRowsUsd = useCallback(
@@ -355,6 +234,31 @@ export const VoteCalculatorSection = ({
     [getTokenMeta],
   );
 
+  const onSort = (field: "votes" | "rewardSignal") => {
+    if (sortField === field) {
+      setSortDir((d) => (d === "desc" ? "asc" : "desc"));
+    } else {
+      setSortField(field);
+      setSortDir("desc");
+    }
+  };
+
+  const sortedGauges = useMemo(() => {
+    if (!gauges.length) return gauges;
+    return [...gauges].sort((a, b) => {
+      let aVal: number;
+      let bVal: number;
+      if (sortField === "votes") {
+        aVal = Number(formatUnits(a.votes, 18));
+        bVal = Number(formatUnits(b.votes, 18));
+      } else {
+        aVal = getRewardRowsUsd([...a.rewards, ...a.fees]).total;
+        bVal = getRewardRowsUsd([...b.rewards, ...b.fees]).total;
+      }
+      return sortDir === "desc" ? bVal - aVal : aVal - bVal;
+    });
+  }, [gauges, sortField, sortDir, getRewardRowsUsd]);
+
   const formatRewardRows = useCallback(
     (rows: GaugeBribeTokenReward[]) => {
       const nonZero = rows.filter((r) => r.amount > 0n);
@@ -371,86 +275,55 @@ export const VoteCalculatorSection = ({
 
   const btcPriceUsd = useMemo(
     () =>
-      Object.values(rewardTokenMarkets).find((m) => m.symbol === "BTC")
-        ?.priceUsd ?? (btcPrice > 0 ? btcPrice : null),
-    [rewardTokenMarkets, btcPrice],
-  );
-
-  // ── reward signals ────────────────────────────────────────────────────────
-  const rewardSignalUsdByPool = useMemo(
-    () =>
-      Object.fromEntries(
-        gauges.map((item) => {
-          const priced = getRewardRowsUsd([...item.rewards, ...item.fees]);
-          return [item.pool.toLowerCase(), priced.total];
-        }),
-      ) as Record<string, number>,
-    [gauges, getRewardRowsUsd],
+      Object.values(tokenMarkets).find((m) => m.symbol === "BTC")?.priceUsd ??
+      (btcPrice > 0 ? btcPrice : null),
+    [tokenMarkets, btcPrice],
   );
 
   // ── projections ───────────────────────────────────────────────────────────
-  const draftProjection = useMemo((): Projection | null => {
-    if (!gauges.length) return null;
-    const rows = gauges.map((item) => {
-      const key = item.pool.toLowerCase();
-      const vote = effectiveDraftVotesByPool[key] ?? 0n;
-      const projectedRewards = projectRewardRows(
-        [...item.rewards, ...item.fees],
-        vote,
-        item.votes,
-      );
-      const priced = getRewardRowsUsd(projectedRewards);
+  const buildProjection = useCallback(
+    (votesByPool: Record<string, bigint>): Projection | null => {
+      if (!gauges.length) return null;
+      const rows = gauges.map((item) => {
+        const key = item.pool.toLowerCase();
+        const vote = votesByPool[key] ?? 0n;
+        const projectedRewards = projectGaugeBribeRewards(
+          [...item.rewards, ...item.fees],
+          vote,
+          item.votes,
+        );
+        const priced = getRewardRowsUsd(projectedRewards);
+        return {
+          pool: item.pool,
+          vote,
+          projectedRewards,
+          projectedUsd: priced.total,
+          hasUnpricedRewards: priced.hasUnpriced,
+        };
+      });
       return {
-        pool: item.pool,
-        gauge: item.gauge,
-        vote,
-        projectedRewards,
-        projectedUsd: priced.total,
-        hasUnpricedRewards: priced.hasUnpriced,
+        rows,
+        totalProjectedUsd: rows.reduce((a, r) => a + r.projectedUsd, 0),
+        hasUnpricedRewards: rows.some((r) => r.hasUnpricedRewards),
       };
-    });
-    return {
-      rows,
-      totalProjectedUsd: rows.reduce((a, r) => a + r.projectedUsd, 0),
-      hasUnpricedRewards: rows.some((r) => r.hasUnpricedRewards),
-    };
-  }, [effectiveDraftVotesByPool, gauges, getRewardRowsUsd]);
+    },
+    [gauges, getRewardRowsUsd],
+  );
 
-  const optimalProjection = useMemo((): Projection | null => {
-    if (!gauges.length) return null;
-    const rows = gauges.map((item) => {
-      const key = item.pool.toLowerCase();
-      const vote = effectiveOptimalVotesByPool[key] ?? 0n;
-      const projectedRewards = projectRewardRows(
-        [...item.rewards, ...item.fees],
-        vote,
-        item.votes,
-      );
-      const priced = getRewardRowsUsd(projectedRewards);
-      return {
-        pool: item.pool,
-        gauge: item.gauge,
-        vote,
-        projectedRewards,
-        projectedUsd: priced.total,
-        hasUnpricedRewards: priced.hasUnpriced,
-      };
-    });
-    return {
-      rows,
-      totalProjectedUsd: rows.reduce((a, r) => a + r.projectedUsd, 0),
-      hasUnpricedRewards: rows.some((r) => r.hasUnpricedRewards),
-    };
-  }, [effectiveOptimalVotesByPool, gauges, getRewardRowsUsd]);
+  const draftProjection = useMemo(
+    () => buildProjection(effectiveDraftVotesByPool),
+    [buildProjection, effectiveDraftVotesByPool],
+  );
+  const optimalProjection = useMemo(
+    () => buildProjection(effectiveOptimalVotesByPool),
+    [buildProjection, effectiveOptimalVotesByPool],
+  );
 
   // ── actions ───────────────────────────────────────────────────────────────
   const onApplyOptimal = () => {
     setDraftWeights(
       Object.fromEntries(
-        Object.entries(optimalWeights).map(([pool, weight]) => [
-          pool,
-          weight.toString(),
-        ]),
+        Object.entries(optimalWeights).map(([pool, w]) => [pool, w.toString()]),
       ),
     );
   };
@@ -465,8 +338,8 @@ export const VoteCalculatorSection = ({
     setDraftWeights((prev) => ({ ...prev, [key]: value }));
   };
 
-  const onTogglePoolCalculation = (key: string, enabled: boolean) => {
-    setEnabledPoolCalculations((prev) => ({ ...prev, [key]: enabled }));
+  const onTogglePool = (key: string, enabled: boolean) => {
+    setEnabledPools((prev) => ({ ...prev, [key]: enabled }));
   };
 
   const onCopyAddress = async (value: string) => {
@@ -478,65 +351,91 @@ export const VoteCalculatorSection = ({
   };
 
   const onVote = async () => {
-    if (!walletClient || !publicClient || !selectedLock) return;
+    const account = walletClient?.account;
+    if (!account || !publicClient || !selectedLock) return;
     const entries = Object.entries(effectiveDraftVotesByPool).filter(
       ([, w]) => w > 0n,
     );
     if (!entries.length) return;
-    const pools = entries.map(([pool]) => pool as `0x${string}`);
-    const weights = entries.map(([, weight]) => weight);
+    // Checksum pool addresses for the contract call
+    const pools = entries.map(([pool]) => getAddress(pool));
+    const weights = entries.map(([, w]) => w);
 
     setTxState("pending");
     setTxHash(null);
+    setError(null);
     try {
       const { request } = await (publicClient as PublicClient).simulateContract(
         {
-          address: AppContracts.voter as `0x${string}`,
+          address: contracts.voter,
           abi: VoterAbi,
           functionName: "vote",
           args: [selectedLock.tokenId, pools, weights],
-          account: walletClient.account,
+          account,
         },
       );
       const hash = await walletClient.writeContract(request);
       setTxHash(hash);
       setTxState("success");
+      // Refresh to update hasVoted flag
+      void reloadBase();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Vote transaction failed.");
       setTxState("error");
     }
   };
 
+  const onResetVote = async () => {
+    const account = walletClient?.account;
+    if (!account || !publicClient || !selectedLock) return;
+
+    setTxState("pending");
+    setTxHash(null);
+    setError(null);
+    try {
+      const { request } = await (publicClient as PublicClient).simulateContract(
+        {
+          address: contracts.voter,
+          abi: VoterAbi,
+          functionName: "reset",
+          args: [selectedLock.tokenId],
+          account,
+        },
+      );
+      const hash = await walletClient.writeContract(request);
+      setTxHash(hash);
+      setTxState("success");
+      void reloadBase();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Reset vote transaction failed.",
+      );
+      setTxState("error");
+    }
+  };
+
   // ── reloadBase ────────────────────────────────────────────────────────────
   const reloadBase = useCallback(async () => {
-    if (!publicClient || !address || !vFetcher) {
-      setLocks([]);
-      setIncentives([]);
-      setGauges([]);
-      setRewardTokenMarkets({});
-      return;
-    }
-
+    if (!publicClient) return;
     setLoading(true);
     setError(null);
-
     try {
-      const [nextLocks, gaugeRowsResult, nextMaxVotingNum] = await Promise.all([
-        vFetcher.getLocks(address),
+      const [gaugeRowsResult, nextMaxVotingNum, nextLocks] = await Promise.all([
         supabase.from("gauges").select("*").returns<GaugeSupabaseRow[]>(),
         (publicClient as PublicClient).readContract({
-          address: AppContracts.voter as `0x${string}`,
+          address: contracts.voter,
           abi: VoterAbi,
           functionName: "maxVotingNum",
         }) as Promise<bigint>,
+        address && vFetcher
+          ? vFetcher.getLocks(address)
+          : Promise.resolve([] as VeLockSummary[]),
       ]);
 
-      if (gaugeRowsResult.error) {
-        throw new Error(gaugeRowsResult.error.message);
-      }
+      if (gaugeRowsResult.error) throw new Error(gaugeRowsResult.error.message);
 
-      const nextIncentives = (gaugeRowsResult.data ?? []).map(
-        rowToGaugeIncentive,
+      const nextIncentives = (gaugeRowsResult.data ?? []).map((r) =>
+        gaugeRowToIncentive(r as Parameters<typeof gaugeRowToIncentive>[0]),
       );
 
       const rewardTokens = Array.from(
@@ -558,84 +457,80 @@ export const VoteCalculatorSection = ({
             )
           : new Map<string, TokenMarket>();
 
-      setLocks(nextLocks);
       setIncentives(nextIncentives);
+      setTokenMarkets(Object.fromEntries(nextMarkets));
       setMaxVotingNum(nextMaxVotingNum);
-      setRewardTokenMarkets(Object.fromEntries(nextMarkets));
+      setLocks(nextLocks);
 
-      if (nextLocks.length === 0) {
-        setSelectedLockId("");
-        setGauges([]);
-        setDraftWeights({});
-        setOptimalWeights({});
-      } else {
+      if (nextLocks.length > 0) {
         setSelectedLockId((prev) => {
           if (prev && nextLocks.some((l) => l.tokenId.toString() === prev))
             return prev;
           return nextLocks[0].tokenId.toString();
         });
+      } else {
+        setSelectedLockId("");
       }
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to load vote data.",
       );
-      setGauges([]);
-      setDraftWeights({});
-      setOptimalWeights({});
-      setRewardTokenMarkets({});
     } finally {
       setLoading(false);
     }
-  }, [publicClient, address, vFetcher]);
+  }, [publicClient, address, vFetcher, contracts]);
 
   // ── effects ───────────────────────────────────────────────────────────────
 
-  // Reload when sheet opens
   useEffect(() => {
     if (open) void reloadBase();
   }, [open, reloadBase]);
 
-  // Refresh gauge opportunities when selected lock or incentives change
+  // Build gauge opportunities from incentives + optional per-lock votes
   useEffect(() => {
-    const refreshLockView = async () => {
-      if (!vFetcher || !selectedLock || !incentives.length) return;
-      try {
-        setError(null);
-        const opportunities = await vFetcher.getGaugeVoteOpportunities(
-          selectedLock.tokenId,
-          incentives,
-        );
-        setGauges(opportunities);
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "Failed to load gauge data.",
-        );
+    const load = async () => {
+      if (!incentives.length) {
+        setGauges([]);
+        return;
+      }
+      if (selectedLock && vFetcher) {
+        try {
+          const opps = await vFetcher.getGaugeVoteOpportunities(
+            selectedLock.tokenId,
+            incentives,
+          );
+          setGauges(opps);
+        } catch {
+          setGauges(incentivesToOpportunities(incentives));
+        }
+      } else {
+        setGauges(incentivesToOpportunities(incentives));
       }
     };
-    void refreshLockView();
+    void load();
   }, [selectedLockId, selectedLock, vFetcher, incentives]);
 
-  // Init enabledPoolCalculations when gauges load
+  // Sync enabledPools when gauges change (keep existing toggles)
   useEffect(() => {
-    setEnabledPoolCalculations((prev) =>
+    setEnabledPools((prev) =>
       Object.fromEntries(
-        gauges.map((gauge) => {
-          const key = gauge.pool.toLowerCase();
+        gauges.map((g) => {
+          const key = g.pool.toLowerCase();
           return [key, prev[key] ?? true];
         }),
       ),
     );
   }, [gauges]);
 
-  // Recalculate optimal weights and initialize draft weights when inputs change
+  // Recompute optimal allocation and seed draft when inputs change
   useEffect(() => {
-    if (!vFetcher || !selectedLock || !gauges.length) {
+    if (!vFetcher || !effectiveVotingPower || !gauges.length) {
       setOptimalWeights({});
       setDraftWeights({});
       return;
     }
-    const selectedOpps = calculationGauges;
-    if (!selectedOpps.length) {
+    const eligible = calculationGauges;
+    if (!eligible.length) {
       setOptimalWeights({});
       setDraftWeights(
         Object.fromEntries(gauges.map((g) => [g.pool.toLowerCase(), ""])),
@@ -643,14 +538,14 @@ export const VoteCalculatorSection = ({
       return;
     }
     const rewardSignalByPool = Object.fromEntries(
-      selectedOpps.map((item) => {
+      eligible.map((item) => {
         const priced = getRewardRowsUsd([...item.rewards, ...item.fees]);
         return [item.pool.toLowerCase(), priced.total];
       }),
     );
     const suggested = vFetcher.buildOptimalVoteAllocation(
-      selectedOpps,
-      selectedLock.votingPower,
+      eligible,
+      effectiveVotingPower,
       {
         maxPools: maxVotingNum === null ? undefined : Number(maxVotingNum),
         rewardSignalByPool,
@@ -662,8 +557,8 @@ export const VoteCalculatorSection = ({
     setOptimalWeights(suggestedByPool);
     setDraftWeights(
       Object.fromEntries(
-        gauges.map((gauge) => {
-          const key = gauge.pool.toLowerCase();
+        gauges.map((g) => {
+          const key = g.pool.toLowerCase();
           const weight = suggestedByPool[key] ?? 0n;
           return [key, weight > 0n ? weight.toString() : ""];
         }),
@@ -671,35 +566,32 @@ export const VoteCalculatorSection = ({
     );
   }, [
     calculationGauges,
+    effectiveVotingPower,
     gauges,
     getRewardRowsUsd,
     maxVotingNum,
-    selectedLock,
     vFetcher,
   ]);
 
   // ── render ─────────────────────────────────────────────────────────────────
 
-  if (!address) {
-    return (
-      <div className="flex flex-col items-center gap-4 rounded-xl border border-card-border/60 bg-muted/20 p-6 text-sm text-muted-foreground">
-        <p>Connect your wallet to use the vote calculator.</p>
-        <WalletConnectButton />
-      </div>
-    );
-  }
+  const hasWallet = !!address;
+  const hasLocks = locks.length > 0;
+  const canVote =
+    !!selectedLock && !selectedLock.hasVoted && !!walletClient?.account;
+  // Reset abstains for current epoch (clears carried-over weights).
+  // Only callable before voting this epoch — same window as vote.
+  const canReset =
+    !!selectedLock && !selectedLock.hasVoted && !!walletClient?.account;
 
   return (
     <div className="flex flex-col gap-4">
       {/* ── actions row ── */}
       <div className="flex flex-wrap items-center gap-2">
-        {loading && !locks.length ? (
+        {/* Lock selector or manual VP input */}
+        {loading && !gauges.length ? (
           <Skeleton className="h-9 w-52" />
-        ) : locks.length === 0 ? (
-          <span className="text-sm text-muted-foreground">
-            No veBTC locks found.
-          </span>
-        ) : (
+        ) : hasLocks ? (
           <Select value={selectedLockId} onValueChange={setSelectedLockId}>
             <SelectTrigger className="w-52">
               <SelectValue placeholder="Select lock…" />
@@ -714,7 +606,7 @@ export const VoteCalculatorSection = ({
                     <span className="font-mono text-xs text-muted-foreground">
                       #{lock.tokenId.toString()}
                     </span>
-                    <span>{formatBig(lock.votingPower)} veBTC</span>
+                    <span>{formatVotingPower(lock.votingPower)} veBTC</span>
                     {lock.hasVoted && (
                       <span className="rounded bg-muted px-1 text-[10px]">
                         voted
@@ -725,6 +617,22 @@ export const VoteCalculatorSection = ({
               ))}
             </SelectContent>
           </Select>
+        ) : (
+          <div className="flex items-center gap-2">
+            <Input
+              type="text"
+              inputMode="decimal"
+              placeholder="0.0 veBTC"
+              value={manualVpInput}
+              onChange={(e) => setManualVpInput(e.target.value)}
+              className="h-9 w-36 text-right text-xs"
+            />
+            <span className="text-xs text-muted-foreground">
+              {hasWallet
+                ? "No veBTC locks found"
+                : "Enter voting power manually"}
+            </span>
+          </div>
         )}
 
         <Button
@@ -743,7 +651,7 @@ export const VoteCalculatorSection = ({
           variant="ghost"
           size="sm"
           onClick={onApplyOptimal}
-          disabled={!selectedLock}
+          disabled={!effectiveVotingPower}
         >
           Apply Optimal
         </Button>
@@ -751,28 +659,44 @@ export const VoteCalculatorSection = ({
           variant="ghost"
           size="sm"
           onClick={onClearDraft}
-          disabled={!selectedLock || !gauges.length}
+          disabled={!gauges.length}
         >
-          Clear Draft
+          Clear
         </Button>
-        {/* <Button
-          variant="default"
-          size="sm"
-          className="gap-1.5"
-          onClick={() => void onVote()}
-          disabled={
-            !selectedLock ||
-            !walletClient ||
-            txState === "pending" ||
-            Object.values(effectiveDraftVotesByPool).every((w) => w === 0n)
-          }
-        >
-          <Vote className="h-3.5 w-3.5" />
-          {txState === "pending" ? "Voting…" : "Vote"}
-        </Button> */}
+
+        {/* Vote / Reset buttons — only when wallet connected and lock selected */}
+        {canVote && (
+          <Button
+            variant="default"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => void onVote()}
+            disabled={
+              txState === "pending" ||
+              Object.values(effectiveDraftVotesByPool).every((w) => w === 0n)
+            }
+          >
+            <Vote className="h-3.5 w-3.5" />
+            {txState === "pending" ? "Voting…" : "Vote"}
+          </Button>
+        )}
+        {canReset && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => void onResetVote()}
+            disabled={txState === "pending"}
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            {txState === "pending" ? "Resetting…" : "Reset Vote"}
+          </Button>
+        )}
+
+        {/* Tx feedback */}
         {txState === "success" && txHash && (
           <a
-            href={`https://explorer.mezo.org/tx/${txHash}`}
+            href={`${MEZO_BC_EXPLORER}/tx/${txHash}`}
             target="_blank"
             rel="noreferrer"
             className="text-xs text-green-500 hover:underline"
@@ -781,25 +705,36 @@ export const VoteCalculatorSection = ({
           </a>
         )}
         {txState === "error" && (
-          <span className="text-xs text-destructive">Vote failed</span>
+          <span className="text-xs text-destructive">Tx failed</span>
         )}
 
-        {selectedLock && (
-          <span className="ml-auto text-xs text-muted-foreground">
-            Lock #{selectedLock.tokenId.toString()} · VP{" "}
-            <span className="font-semibold text-foreground">
-              {formatBig(selectedLock.votingPower)}
-            </span>
-            {draftedTotal > 0n && (
-              <span className="ml-2">
-                · drafted{" "}
-                <span className="font-semibold text-foreground">
-                  {formatBig(draftedTotal)}
-                </span>
+        {/* Right side: VP summary */}
+        <span className="ml-auto text-xs text-muted-foreground">
+          {selectedLock ? (
+            <>
+              Lock #{selectedLock.tokenId.toString()} · VP{" "}
+              <span className="font-semibold text-foreground">
+                {formatVotingPower(selectedLock.votingPower)}
               </span>
-            )}
-          </span>
-        )}
+            </>
+          ) : effectiveVotingPower > 0n ? (
+            <>
+              VP{" "}
+              <span className="font-semibold text-foreground">
+                {formatVotingPower(effectiveVotingPower)}
+              </span>{" "}
+              (manual)
+            </>
+          ) : null}
+          {draftedTotal > 0n && effectiveVotingPower > 0n && (
+            <span className="ml-2">
+              · drafted{" "}
+              <span className="font-semibold text-foreground">
+                {formatVotingPower(draftedTotal)}
+              </span>
+            </span>
+          )}
+        </span>
       </div>
 
       {/* ── projection grid ── */}
@@ -847,10 +782,40 @@ export const VoteCalculatorSection = ({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-10">Calc</TableHead>
-              <TableHead className="min-w-[180px]">Pool</TableHead>
-              <TableHead className="min-w-[90px] text-right">Votes</TableHead>
-              <TableHead className="min-w-[140px]">Reward Signal</TableHead>
+              <TableHead className="w-8">Calc</TableHead>
+              <TableHead className="min-w-[160px]">Pool</TableHead>
+              <TableHead className="min-w-[90px] text-right">
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-end gap-1 hover:text-foreground"
+                  onClick={() => onSort("votes")}
+                >
+                  Votes
+                  <span className="text-[10px]">
+                    {sortField === "votes"
+                      ? sortDir === "desc"
+                        ? "↓"
+                        : "↑"
+                      : "↕"}
+                  </span>
+                </button>
+              </TableHead>
+              <TableHead className="min-w-[140px]">
+                <button
+                  type="button"
+                  className="flex items-center gap-1 hover:text-foreground"
+                  onClick={() => onSort("rewardSignal")}
+                >
+                  Reward Signal
+                  <span className="text-[10px]">
+                    {sortField === "rewardSignal"
+                      ? sortDir === "desc"
+                        ? "↓"
+                        : "↑"
+                      : "↕"}
+                  </span>
+                </button>
+              </TableHead>
               <TableHead className="text-right">Optimal</TableHead>
               <TableHead className="w-28">Draft</TableHead>
               <TableHead className="min-w-[110px]">Draft PnL</TableHead>
@@ -868,17 +833,16 @@ export const VoteCalculatorSection = ({
                     ))}
                   </TableRow>
                 ))
-              : gauges.map((gauge) => {
+              : sortedGauges.map((gauge) => {
                   const key = gauge.pool.toLowerCase();
-                  const calculationEnabled =
-                    enabledPoolCalculations[key] !== false;
-                  const gaugeAddress =
+                  const calcEnabled = enabledPools[key] !== false;
+                  const gaugeAddr =
                     gauge.gauge === ZERO_ADDRESS ? gauge.pool : gauge.gauge;
-                  const draftRewardRow =
+                  const draftRow =
                     draftProjection?.rows.find(
                       (r) => r.pool.toLowerCase() === key,
                     ) ?? null;
-                  const optimalRewardRow =
+                  const optimalRow =
                     optimalProjection?.rows.find(
                       (r) => r.pool.toLowerCase() === key,
                     ) ?? null;
@@ -886,7 +850,12 @@ export const VoteCalculatorSection = ({
                     ...gauge.rewards,
                     ...gauge.fees,
                   ]);
-                  const optimal = optimalWeights[key] ?? 0n;
+                  const optimalWeight = optimalWeights[key] ?? 0n;
+                  const draftVote = effectiveDraftVotesByPool[key] ?? 0n;
+                  const draftPct = bigintSharePct(
+                    draftVote,
+                    effectiveVotingPower,
+                  );
 
                   return (
                     <TableRow key={gauge.gauge}>
@@ -894,12 +863,10 @@ export const VoteCalculatorSection = ({
                       <TableCell>
                         <input
                           aria-label={`Include ${gauge.poolName || gauge.pool} in calculation`}
-                          checked={calculationEnabled}
+                          checked={calcEnabled}
                           type="checkbox"
                           className="h-4 w-4 cursor-pointer accent-primary"
-                          onChange={(e) =>
-                            onTogglePoolCalculation(key, e.target.checked)
-                          }
+                          onChange={(e) => onTogglePool(key, e.target.checked)}
                         />
                       </TableCell>
 
@@ -911,7 +878,7 @@ export const VoteCalculatorSection = ({
                           </span>
                           <span className="flex items-center gap-1 text-xs text-muted-foreground">
                             <a
-                              href={`${EXPLORER}/${gauge.pool}`}
+                              href={`${MEZO_BC_EXPLORER}/address/${gauge.pool}`}
                               target="_blank"
                               rel="noreferrer"
                               className="hover:text-foreground hover:underline"
@@ -930,23 +897,25 @@ export const VoteCalculatorSection = ({
                           <span className="text-xs text-muted-foreground">
                             Gauge{" "}
                             <a
-                              href={`${EXPLORER}/${gaugeAddress}`}
+                              href={`${MEZO_BC_EXPLORER}/address/${gaugeAddr}`}
                               target="_blank"
                               rel="noreferrer"
                               className="hover:text-foreground hover:underline"
                             >
-                              {shortenAddress(gaugeAddress)}
+                              {shortenAddress(gaugeAddr)}
                             </a>
                           </span>
                         </div>
                       </TableCell>
 
-                      {/* Votes: my / total */}
+                      {/* Votes: my vote (large) + total in parens below (small) */}
                       <TableCell className="text-right font-mono text-xs">
                         <div className="flex flex-col items-end">
-                          <span>{formatBig(gauge.currentVote)}</span>
+                          <span className="text-sm font-semibold text-foreground">
+                            {formatVotingPower(gauge.currentVote)}
+                          </span>
                           <span className="text-[12px] text-muted-foreground">
-                            ({formatBig(gauge.votes)})
+                            ({formatVotingPower(gauge.votes)})
                           </span>
                         </div>
                       </TableCell>
@@ -960,7 +929,7 @@ export const VoteCalculatorSection = ({
                           <span className="text-muted-foreground">
                             {formatRewardSignalSource(gauge.rewardSignalSource)}
                             {rewardSignalUsd.hasUnpriced
-                              ? " · priced tokens only"
+                              ? " · priced only"
                               : ""}
                           </span>
                           <span className="text-muted-foreground">
@@ -974,35 +943,40 @@ export const VoteCalculatorSection = ({
 
                       {/* Optimal */}
                       <TableCell className="text-right font-mono text-xs">
-                        {formatBig(optimal)}
+                        {formatVotingPower(optimalWeight)}
                       </TableCell>
 
-                      {/* Draft */}
+                      {/* Draft + % */}
                       <TableCell>
-                        <Input
-                          inputMode="numeric"
-                          value={draftWeights[key] ?? "0"}
-                          onChange={(e) => onWeightChange(key, e.target.value)}
-                          className="h-7 w-28 px-2 text-right text-xs"
-                        />
+                        <div className="flex flex-col items-end gap-0.5">
+                          <Input
+                            inputMode="numeric"
+                            value={draftWeights[key] ?? ""}
+                            onChange={(e) =>
+                              onWeightChange(key, e.target.value)
+                            }
+                            className="h-7 w-28 px-2 text-right text-xs"
+                          />
+                          <span className="text-[10px] text-muted-foreground">
+                            {draftPct !== null && draftPct > 0
+                              ? `${draftPct.toFixed(1)}%`
+                              : ""}
+                          </span>
+                        </div>
                       </TableCell>
 
                       {/* Draft PnL */}
                       <TableCell>
                         <div className="flex flex-col gap-0.5 text-xs">
                           <span className="font-semibold text-foreground">
-                            {draftRewardRow
-                              ? formatUsd(draftRewardRow.projectedUsd)
-                              : "-"}
+                            {draftRow ? formatUsd(draftRow.projectedUsd) : "-"}
                           </span>
                           <span className="text-muted-foreground">
-                            {draftRewardRow
-                              ? formatRewardRows(
-                                  draftRewardRow.projectedRewards,
-                                )
+                            {draftRow
+                              ? formatRewardRows(draftRow.projectedRewards)
                               : "-"}
-                            {draftRewardRow?.hasUnpricedRewards
-                              ? " · priced tokens only"
+                            {draftRow?.hasUnpricedRewards
+                              ? " · priced only"
                               : ""}
                           </span>
                         </div>
@@ -1012,18 +986,16 @@ export const VoteCalculatorSection = ({
                       <TableCell>
                         <div className="flex flex-col gap-0.5 text-xs">
                           <span className="font-semibold text-foreground">
-                            {optimalRewardRow
-                              ? formatUsd(optimalRewardRow.projectedUsd)
+                            {optimalRow
+                              ? formatUsd(optimalRow.projectedUsd)
                               : "-"}
                           </span>
                           <span className="text-muted-foreground">
-                            {optimalRewardRow
-                              ? formatRewardRows(
-                                  optimalRewardRow.projectedRewards,
-                                )
+                            {optimalRow
+                              ? formatRewardRows(optimalRow.projectedRewards)
                               : "-"}
-                            {optimalRewardRow?.hasUnpricedRewards
-                              ? " · priced tokens only"
+                            {optimalRow?.hasUnpricedRewards
+                              ? " · priced only"
                               : ""}
                           </span>
                         </div>
@@ -1038,9 +1010,7 @@ export const VoteCalculatorSection = ({
                   colSpan={8}
                   className="py-8 text-center text-sm text-muted-foreground"
                 >
-                  {selectedLock
-                    ? "No gauge data for selected lock."
-                    : "Select a lock to view gauge opportunities."}
+                  No gauge data available.
                 </TableCell>
               </TableRow>
             )}

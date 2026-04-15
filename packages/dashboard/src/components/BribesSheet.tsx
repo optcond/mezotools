@@ -143,10 +143,11 @@ export const BribesSheet = ({ open, onOpenChange, btcPrice }: BribesSheetProps) 
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <Vote className="h-5 w-5 text-primary" />
-            Gauge bribes
+            veBTC voting
           </SheetTitle>
-          <SheetDescription className="space-y-2 text-sm">
-            <p>
+          <SheetDescription asChild>
+            <div className="space-y-2 text-sm">
+            <span className="block">
               veBTC and epoch data refresh every minute while this dialog is
               open
               {refreshLabel ? (
@@ -156,7 +157,7 @@ export const BribesSheet = ({ open, onOpenChange, btcPrice }: BribesSheetProps) 
                 </span>
               ) : null}
               .
-            </p>
+            </span>
             <div className="grid gap-3 text-xs text-muted-foreground sm:grid-cols-2 lg:grid-cols-3">
               <div className="space-y-1 rounded-lg border border-card-border/60 bg-muted/20 p-3">
                 <div className="text-sm font-semibold text-foreground">
@@ -223,7 +224,7 @@ export const BribesSheet = ({ open, onOpenChange, btcPrice }: BribesSheetProps) 
                 <p>Live total voting power of the veMEZO contract.</p>
               </div>
             </div>
-          </SheetDescription>
+          </div></SheetDescription>
         </SheetHeader>
 
         {query.error && (

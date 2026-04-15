@@ -169,6 +169,18 @@ export const VoterAbi = [
     stateMutability: "nonpayable",
     type: "function",
   },
+  // Custom errors
+  { type: "error", name: "AlreadyVotedOrDeposited", inputs: [] },
+  { type: "error", name: "AlreadyVoted", inputs: [] },
+  { type: "error", name: "DistributeWindow", inputs: [] },
+  { type: "error", name: "EpochVoteEnd", inputs: [] },
+  { type: "error", name: "EpochVoteStart", inputs: [] },
+  { type: "error", name: "GaugeDead", inputs: [] },
+  { type: "error", name: "NotApprovedOrOwner", inputs: [] },
+  { type: "error", name: "TooManyPools", inputs: [] },
+  { type: "error", name: "ZeroBalance", inputs: [] },
+  { type: "error", name: "NonZeroVotes", inputs: [] },
+  { type: "error", name: "SpecialVotingWindow", inputs: [] },
 ] as const satisfies Abi;
 
 export const BribeVotingRewardAbi = [

@@ -1,7 +1,7 @@
 import { Chain } from "viem";
 
-export const MezoBlockChainExplorer = "https://explorer.mezo.org/address";
-export const ZeroAddress = `0x0000000000000000000000000000000000000000`;
+export const MEZO_BC_EXPLORER = "https://explorer.mezo.org";
+export const ZERO_ADDRESS = `0x0000000000000000000000000000000000000000`;
 
 export const MezoChain = {
   contracts: {

@@ -94,3 +94,18 @@ export type {
   ClaimableRewardsSummary,
   VotePlannerOptions,
 } from "./lib/veVoteFetcher";
+
+export {
+  mergeRewardRows,
+  projectGaugeBribeRewards,
+  normalizeWeightsToVotingPower,
+  gaugeRowToIncentive,
+  incentivesToOpportunities,
+} from "./lib/gaugeUtils";
+
+export {
+  formatVotingPower,
+  formatTokenAmount,
+  formatUsd,
+  bigintSharePct,
+} from "./lib/formatUtils";
