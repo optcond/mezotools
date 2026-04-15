@@ -10,6 +10,7 @@ export interface SystemSnapshot {
   ratio: number;
   btcPrice: number;
   musdToUsdcPrice: number | null;
+  mezoUsdPrice: number | null;
 }
 
 export interface LiquidationRow {
@@ -73,11 +74,13 @@ export interface DailyMetricsRow {
   debt: number;
   tcr: number;
   btc_price: number;
+  mezo_usd_price: number | null;
   updated_at: string;
 }
 
 export interface SystemSnapshotPriceRow {
   musd_to_usdc_price: number | null;
+  mezo_usd_price: number | null;
 }
 
 export interface BridgeAssetRow {
@@ -135,6 +138,8 @@ export interface GaugeStateRow {
 export interface GaugeBribeRow {
   token: string;
   amount: string;
+  previous_epoch_amount?: string;
+  next_epoch_amount?: string;
 }
 
 export interface GaugeRow {
@@ -142,9 +147,11 @@ export interface GaugeRow {
   pool: string;
   pool_name: string | null;
   bribe: string;
+  fee: string;
   votes: string;
   duration: number;
   epoch_start: number;
   bribes: GaugeBribeRow[];
+  fees: GaugeBribeRow[];
   updated_at: string;
 }

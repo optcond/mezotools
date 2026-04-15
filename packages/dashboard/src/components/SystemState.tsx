@@ -5,7 +5,6 @@ import {
   Coins,
   CircleDollarSign,
   Gauge,
-  ArrowDownLeft,
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
@@ -19,7 +18,7 @@ const TCR_CHART_STORAGE_KEY = "mezo-chart-collapse-system-state";
 
 interface SystemStateProps {
   tcr: number;
-  tcrMinus10: number;
+  mezoUsdPrice: number | null;
   totalCollateral: number;
   totalDebt: number;
   totalTroves: number;
@@ -50,7 +49,7 @@ const MetricTile = ({
 
 export const SystemState = ({ 
   tcr, 
-  tcrMinus10, 
+  mezoUsdPrice, 
   totalCollateral,
   totalDebt, 
   totalTroves,
@@ -69,6 +68,13 @@ export const SystemState = ({
       ? `$${musdPrice.toLocaleString(undefined, {
           minimumFractionDigits: 4,
           maximumFractionDigits: 4,
+        })}`
+      : "—";
+  const mezoLabel =
+    mezoUsdPrice !== null && Number.isFinite(mezoUsdPrice)
+      ? `$${mezoUsdPrice.toLocaleString(undefined, {
+          minimumFractionDigits: 4,
+          maximumFractionDigits: 6,
         })}`
       : "—";
 
@@ -154,11 +160,11 @@ export const SystemState = ({
           icon={Gauge}
         />
         <MetricTile
-          label="TCR -10%"
-          value={`${(tcrMinus10 * 100).toFixed(1)}%`}
-          subtitle="10% price drop"
-          borderColor={getTcrColor(tcrMinus10)}
-          icon={ArrowDownLeft}
+          label="MEZO / USD"
+          value={mezoLabel}
+          subtitle="Pyth feed"
+          borderColor="border-primary"
+          icon={CircleDollarSign}
         />
         <MetricTile
           label="MUSD / USDC"

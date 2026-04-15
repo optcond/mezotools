@@ -23,6 +23,7 @@ import {
   SupabaseRepository,
   SystemSnapshot,
   PriceFeedFetcher,
+  PythPriceFetcher,
 } from "@mtools/shared";
 import { mainnet } from "viem/chains";
 import { BlockFetcher } from "@mtools/shared/src/lib/blockFetcher";
@@ -32,6 +33,7 @@ interface IndexerDependencies {
   bridgeAssetFetcher: BridgeAssetFetcher;
   dataManager: TroveFetcherWrapper;
   kyberSwap: KyberSwapFetcher;
+  pythPriceFetcher: PythPriceFetcher;
   mezoClient: PublicClient;
   ethClient: PublicClient;
   gaugesFetcher: GaugesFetcher;
@@ -85,6 +87,7 @@ export class Indexer {
     const dataManager = new TroveFetcherWrapper(troveFetcher, priceFeedFetcher);
 
     const kyberSwap = new KyberSwapFetcher();
+    const pythPriceFetcher = new PythPriceFetcher(mezoClient);
 
     // bridgeAssetFetcher
     const bridgeAssetFetcher = new BridgeAssetFetcher(ethClient);
@@ -106,6 +109,7 @@ export class Indexer {
       bridgeAssetFetcher,
       dataManager,
       kyberSwap,
+      pythPriceFetcher,
       mezoClient,
       ethClient,
       gaugesFetcher,
@@ -197,10 +201,35 @@ export class Indexer {
       }
     }
 
+    let mezoUsdPrice: number | null = null;
+    try {
+      const mezoPrice = await this.deps.pythPriceFetcher.fetchMezoUsdPrice();
+      mezoUsdPrice = mezoPrice.normalized;
+      console.log(`Fetched MEZO/USD price from Pyth: ${mezoUsdPrice}`);
+    } catch (error) {
+      console.warn(
+        `Failed to fetch MEZO/USD price from Pyth, using last known price: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      try {
+        mezoUsdPrice = await this.deps.repository.getLatestMezoUsdPrice();
+      } catch (fallbackError) {
+        console.warn(
+          `Failed to load last known MEZO/USD price: ${fallbackError instanceof Error ? fallbackError.message : String(fallbackError)}`,
+        );
+      }
+
+      if (mezoUsdPrice !== null) {
+        console.log(`Loaded last known MEZO/USD price: ${mezoUsdPrice}`);
+      } else {
+        console.warn("MEZO/USD price unavailable: no previous snapshot found");
+      }
+    }
+
     const systemSnapshot: SystemSnapshot = {
       ...systemState,
       btcPrice: systemState.btcPrice,
       musdToUsdcPrice,
+      mezoUsdPrice,
     };
 
     const veSupplyEpochStart =
@@ -243,10 +272,11 @@ export class Indexer {
       currentBlockNumber,
       systemSnapshot.btcPrice,
       musdToUsdcPrice,
+      mezoUsdPrice,
     );
 
-    await this._processBridgeTransfers(lastKnownBlock, currentBlockNumber);
-    await this._processContractCreations(lastKnownBlock, currentBlockNumber);
+    // await this._processBridgeTransfers(lastKnownBlock, currentBlockNumber);
+    // await this._processContractCreations(lastKnownBlock, currentBlockNumber);
 
     await this.deps.repository.updateIndexerState(currentBlockNumber);
     console.log(`Recorded indexer state to block ${currentBlockNumber}`);
@@ -360,10 +390,16 @@ export class Indexer {
     currentBlock: number,
     btcPrice: number,
     musdToUsdcPrice: number | null,
+    mezoUsdPrice: number | null,
   ) {
-    const [lastBtcOracleBlockValue, lastMusd4hBlockValue] = await Promise.all([
+    const [
+      lastBtcOracleBlockValue,
+      lastMusd4hBlockValue,
+      lastMezo4hBlockValue,
+    ] = await Promise.all([
       this.deps.repository.getLastPriceFeedBlock("btc_oracle"),
       this.deps.repository.getLastPriceFeedBlock("musd_usdc_4h"),
+      this.deps.repository.getLastPriceFeedBlock("mezo_usd_4h"),
     ]);
 
     const shouldRecordInstantPrice =
@@ -389,30 +425,67 @@ export class Indexer {
       } else {
         console.log("Skipped recording MUSD price: value unavailable");
       }
-    }
-
-    const shouldRecordFourHourPrice =
-      lastMusd4hBlockValue === null ||
-      currentBlock - lastMusd4hBlockValue >= 2880;
-
-    if (shouldRecordFourHourPrice) {
-      const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000);
-      const averageMusdToUsdcPrice =
-        await this.deps.repository.getAverageMusdToUsdcPriceSince(fourHoursAgo);
-
-      if (averageMusdToUsdcPrice !== null) {
+      if (mezoUsdPrice !== null) {
         await this.deps.repository.recordPrice(
-          averageMusdToUsdcPrice,
-          "musd_usdc_4h",
+          mezoUsdPrice,
+          "mezo_usd",
           currentBlock,
         );
-        console.log(
-          `Recorded 4h MUSD average price ${averageMusdToUsdcPrice} ${currentBlock}`,
-        );
+        console.log(`Recorded MEZO price ${mezoUsdPrice} ${currentBlock}`);
       } else {
-        console.log(
-          "Skipped recording 4h MUSD average price: no snapshots available",
-        );
+        console.log("Skipped recording MEZO price: value unavailable");
+      }
+    }
+
+    const shouldRecordFourHourMusdPrice =
+      lastMusd4hBlockValue === null ||
+      currentBlock - lastMusd4hBlockValue >= 2880;
+    const shouldRecordFourHourMezoPrice =
+      lastMezo4hBlockValue === null ||
+      currentBlock - lastMezo4hBlockValue >= 2880;
+
+    if (shouldRecordFourHourMusdPrice || shouldRecordFourHourMezoPrice) {
+      const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000);
+      if (shouldRecordFourHourMusdPrice) {
+        const averageMusdToUsdcPrice =
+          await this.deps.repository.getAverageMusdToUsdcPriceSince(
+            fourHoursAgo,
+          );
+
+        if (averageMusdToUsdcPrice !== null) {
+          await this.deps.repository.recordPrice(
+            averageMusdToUsdcPrice,
+            "musd_usdc_4h",
+            currentBlock,
+          );
+          console.log(
+            `Recorded 4h MUSD average price ${averageMusdToUsdcPrice} ${currentBlock}`,
+          );
+        } else {
+          console.log(
+            "Skipped recording 4h MUSD average price: no snapshots available",
+          );
+        }
+      }
+
+      if (shouldRecordFourHourMezoPrice) {
+        const averageMezoUsdPrice =
+          await this.deps.repository.getAverageMezoUsdPriceSince(fourHoursAgo);
+
+        if (averageMezoUsdPrice !== null) {
+          await this.deps.repository.recordPrice(
+            averageMezoUsdPrice,
+            "mezo_usd_4h",
+            currentBlock,
+          );
+          console.log(
+            `Recorded 4h MEZO average price ${averageMezoUsdPrice} ${currentBlock}`,
+          );
+        } else {
+          console.log(
+            "Skipped recording 4h MEZO average price: no snapshots available",
+          );
+        }
       }
     }
   }

@@ -150,6 +150,7 @@ export type Database = {
           day: string
           debt: number
           id: string
+          mezo_usd_price: number | null
           tcr: number
           trove_count: number
           updated_at: string
@@ -160,6 +161,7 @@ export type Database = {
           day: string
           debt?: number
           id?: string
+          mezo_usd_price?: number | null
           tcr?: number
           trove_count?: number
           updated_at?: string
@@ -170,6 +172,7 @@ export type Database = {
           day?: string
           debt?: number
           id?: string
+          mezo_usd_price?: number | null
           tcr?: number
           trove_count?: number
           updated_at?: string
@@ -338,6 +341,8 @@ export type Database = {
           bribes: Json
           duration: string
           epoch_start: string
+          fee: string
+          fees: Json
           gauge: string
           pool: string
           pool_name: string | null
@@ -349,6 +354,8 @@ export type Database = {
           bribes?: Json
           duration: string
           epoch_start: string
+          fee?: string
+          fees?: Json
           gauge: string
           pool: string
           pool_name?: string | null
@@ -360,6 +367,8 @@ export type Database = {
           bribes?: Json
           duration?: string
           epoch_start?: string
+          fee?: string
+          fees?: Json
           gauge?: string
           pool?: string
           pool_name?: string | null

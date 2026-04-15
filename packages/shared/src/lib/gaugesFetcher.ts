@@ -2,14 +2,30 @@ import { Abi, PublicClient } from "viem";
 import {
   BribeVotingRewardAbi,
   PoolAbi,
-  PoolFactoryAbi,
   VoterAbi,
   VotingEscrowAbi,
 } from "../abi/Gauges";
-import { AppContracts } from "../types";
+import { ERC20MetaAbi, PoolMarketAbi } from "../abi/PoolMarket";
+import { AppContracts, MezoTokens } from "../types";
 
 const DEFAULT_MULTICALL_BATCH_SIZE = 250;
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+const MEZO_TOKEN_ADDRESS = "0x7B7c000000000000000000000000000000000001";
+
+const KNOWN_TOKEN_SYMBOLS = new Map<string, string>([
+  [MEZO_TOKEN_ADDRESS.toLowerCase(), "MEZO"],
+  ...Object.entries(MezoTokens).map(([symbol, token]) => [
+    token.address.toLowerCase(),
+    symbol,
+  ] as const),
+]);
+
+interface PoolTokenPair {
+  token0: `0x${string}`;
+  token1: `0x${string}`;
+}
+
+const shortAddress = (value: string) => `${value.slice(0, 6)}...${value.slice(-4)}`;
 
 export interface GaugeBribeTokenReward {
   token: `0x${string}`;
@@ -24,10 +40,12 @@ export interface GaugeIncentive {
   poolName?: string;
   gauge: `0x${string}`;
   bribe: `0x${string}`;
+  fee: `0x${string}`;
   votes: bigint;
   duration: bigint;
   epochStart: bigint;
   rewards: GaugeBribeTokenReward[];
+  fees: GaugeBribeTokenReward[];
 }
 
 export interface GaugesFetcherConfig {
@@ -49,6 +67,7 @@ interface GaugeEntry {
   gauge: `0x${string}`;
   votes: bigint;
   bribe: `0x${string}`;
+  fee: `0x${string}`;
 }
 
 interface BribeMeta {
@@ -84,8 +103,6 @@ export class GaugesFetcher {
   async fetchGaugeIncentives(
     options: GaugesFetchOptions = {}
   ): Promise<GaugeIncentive[]> {
-    const poolFactoryAddress =
-      this.config.poolFactoryAddress ?? AppContracts.MEZO_POOL_FACTORY;
     const voterAddress = this.config.voterAddress ?? AppContracts.MEZO_VOTER;
     const multicallBatchSize =
       options.multicallBatchSize ??
@@ -94,18 +111,19 @@ export class GaugesFetcher {
     const probeAdjacentEpochs =
       options.probeAdjacentEpochs ?? this.config.probeAdjacentEpochs ?? false;
 
+    // Enumerate pools from the voter (includes MUSD Savings and other non-factory pools)
     const poolCount = (await this.client.readContract({
-      address: poolFactoryAddress,
-      abi: PoolFactoryAbi,
-      functionName: "allPoolsLength",
+      address: voterAddress,
+      abi: VoterAbi,
+      functionName: "length",
     })) as bigint;
 
     const poolCalls: MulticallContract[] = [];
     for (let i = 0n; i < poolCount; i++) {
       poolCalls.push({
-        address: poolFactoryAddress,
-        abi: PoolFactoryAbi,
-        functionName: "allPools",
+        address: voterAddress,
+        abi: VoterAbi,
+        functionName: "pools",
         args: [i],
       } as const);
     }
@@ -126,6 +144,7 @@ export class GaugesFetcher {
       }
     }
 
+    // Try to get pool name via the PoolAbi "name()" function
     const poolNameCalls: MulticallContract[] = pools.map((pool) => ({
       address: pool,
       abi: PoolAbi,
@@ -136,6 +155,76 @@ export class GaugesFetcher {
       poolNameCalls,
       multicallBatchSize
     );
+
+    // For pools without a name, try fetching token0/token1 to build a fallback name
+    const missingPoolNameIndexes = pools
+      .map((pool, index) => {
+        const result = poolNameResults[index];
+        return result?.status === "success" && result.result ? null : index;
+      })
+      .filter((index): index is number => index !== null);
+
+    const poolPairCalls = missingPoolNameIndexes.flatMap((index) => [
+      { address: pools[index], abi: PoolMarketAbi, functionName: "token0" },
+      { address: pools[index], abi: PoolMarketAbi, functionName: "token1" },
+    ]);
+    const poolPairResults = await this.multicallInChunks(
+      poolPairCalls,
+      multicallBatchSize
+    );
+    const poolPairsByPool = new Map<string, PoolTokenPair>();
+    const tokenAddresses = new Set<`0x${string}`>();
+    let poolPairIdx = 0;
+    for (const index of missingPoolNameIndexes) {
+      const token0Result = poolPairResults[poolPairIdx++];
+      const token1Result = poolPairResults[poolPairIdx++];
+      if (
+        token0Result?.status !== "success" ||
+        token1Result?.status !== "success" ||
+        !token0Result.result ||
+        !token1Result.result
+      ) {
+        continue;
+      }
+      const token0 = token0Result.result as `0x${string}`;
+      const token1 = token1Result.result as `0x${string}`;
+      poolPairsByPool.set(pools[index].toLowerCase(), { token0, token1 });
+      tokenAddresses.add(token0);
+      tokenAddresses.add(token1);
+    }
+
+    const unknownTokenAddresses = Array.from(tokenAddresses).filter(
+      (token) => !KNOWN_TOKEN_SYMBOLS.has(token.toLowerCase())
+    );
+    const tokenSymbolResults = await this.multicallInChunks(
+      unknownTokenAddresses.map((token) => ({
+        address: token,
+        abi: ERC20MetaAbi,
+        functionName: "symbol",
+      })),
+      multicallBatchSize
+    );
+    const tokenSymbolsByAddress = new Map<string, string>(KNOWN_TOKEN_SYMBOLS);
+    for (let i = 0; i < unknownTokenAddresses.length; i++) {
+      const result = tokenSymbolResults[i];
+      if (result?.status === "success" && typeof result.result === "string") {
+        tokenSymbolsByAddress.set(
+          unknownTokenAddresses[i].toLowerCase(),
+          result.result
+        );
+      }
+    }
+
+    const fallbackPoolNamesByPool = new Map<string, string>();
+    for (const [pool, pair] of poolPairsByPool.entries()) {
+      const token0Symbol =
+        tokenSymbolsByAddress.get(pair.token0.toLowerCase()) ??
+        shortAddress(pair.token0);
+      const token1Symbol =
+        tokenSymbolsByAddress.get(pair.token1.toLowerCase()) ??
+        shortAddress(pair.token1);
+      fallbackPoolNamesByPool.set(pool, `${token0Symbol} / ${token1Symbol}`);
+    }
 
     const gaugeCalls = pools.flatMap((pool) => [
       {
@@ -178,13 +267,14 @@ export class GaugesFetcher {
       const poolName =
         poolNameResult?.status === "success" && poolNameResult.result
           ? (poolNameResult.result as string)
-          : undefined;
+          : fallbackPoolNamesByPool.get(pool.toLowerCase());
       gaugeEntries.push({
         pool,
         poolName,
         gauge: gaugeResult.result as `0x${string}`,
         votes,
         bribe: ZERO_ADDRESS,
+        fee: ZERO_ADDRESS,
       });
     }
 
@@ -211,11 +301,36 @@ export class GaugesFetcher {
       }
     }
 
+    const feeCalls = gaugeEntries.map((entry) => ({
+      address: voterAddress,
+      abi: VoterAbi,
+      functionName: "gaugeToFees",
+      args: [entry.gauge],
+    }));
+
+    const feeResults = await this.multicallInChunks(
+      feeCalls,
+      multicallBatchSize
+    );
+
+    for (let i = 0; i < gaugeEntries.length; i++) {
+      const feeResult = feeResults[i];
+      if (
+        feeResult?.status === "success" &&
+        feeResult.result &&
+        feeResult.result !== ZERO_ADDRESS
+      ) {
+        gaugeEntries[i].fee = feeResult.result as `0x${string}`;
+      }
+    }
+
+    // Collect unique reward-contract addresses (both bribe and fee share the same ABI)
     const bribeAddresses = Array.from(
       new Set(
-        gaugeEntries
-          .map((entry) => entry.bribe)
-          .filter((address) => address !== ZERO_ADDRESS)
+        [
+          ...gaugeEntries.map((entry) => entry.bribe),
+          ...gaugeEntries.map((entry) => entry.fee),
+        ].filter((address) => address !== ZERO_ADDRESS)
       )
     );
 
@@ -397,16 +512,19 @@ export class GaugesFetcher {
     }
 
     return gaugeEntries.map((entry) => {
-      const meta = bribeRewards.get(entry.bribe);
+      const bribeMeta = bribeRewards.get(entry.bribe);
+      const feeMeta = bribeRewards.get(entry.fee);
       return {
         pool: entry.pool,
         poolName: entry.poolName,
         gauge: entry.gauge,
         bribe: entry.bribe,
+        fee: entry.fee,
         votes: entry.votes,
-        duration: meta?.duration ?? 0n,
-        epochStart: meta?.epochStart ?? 0n,
-        rewards: meta?.rewards ?? [],
+        duration: bribeMeta?.duration ?? feeMeta?.duration ?? 0n,
+        epochStart: bribeMeta?.epochStart ?? feeMeta?.epochStart ?? 0n,
+        rewards: bribeMeta?.rewards ?? [],
+        fees: feeMeta?.rewards ?? [],
       };
     });
   }

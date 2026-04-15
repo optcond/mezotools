@@ -1,18 +1,25 @@
 import { useMemo, useState } from "react";
-import { useBalance, useChainId } from "wagmi";
-import { Activity, Info, Wallet, ExternalLink } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { useChainId, usePublicClient } from "wagmi";
+import { Activity, ExternalLink, Info, Wallet } from "lucide-react";
+import type { PublicClient } from "viem";
 
 import { WalletConnectButton } from "@/components/WalletConnectButton";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { getMezoContracts, MezoChain, MezoTokens } from "@mtools/shared";
+import {
+  getKnownMezoTokenBalances,
+  getWalletVeNfts,
+  MezoChain,
+} from "@mtools/shared";
+import type { KnownTokenBalance, VeNftLock } from "@mtools/shared";
 import type { Trove, Liquidation, Redemption } from "@/hooks/useMonitorData";
 import type { WalletControls } from "@/hooks/useWallet";
 import { formatNumber } from "@/lib/formatNumber";
@@ -23,8 +30,11 @@ interface PersonalWalletStatsProps {
   redemptions: Redemption[];
   isLoading: boolean;
   wallet: WalletControls;
-  onDebtCalculatorClick?: () => void;
+  tokenPricesUsd?: Record<string, number | null | undefined>;
 }
+
+type MainTab = "balance" | "troves" | "activity" | "ve-nft";
+type ActivityTab = "redemptions" | "liquidations";
 
 const MIN_COLLATERAL_RATIO = 1.1;
 
@@ -45,6 +55,19 @@ const formatDateTime = (value: string) =>
     month: "short",
   });
 
+const formatBalance = (value: number, symbol: string) =>
+  `${value.toLocaleString(undefined, {
+    maximumFractionDigits: value >= 1 ? 4 : 8,
+  })} ${symbol}`;
+
+const formatUsd = (value: number | null) =>
+  value !== null && Number.isFinite(value)
+    ? `$${value.toLocaleString(undefined, {
+        minimumFractionDigits: value >= 1 ? 2 : 4,
+        maximumFractionDigits: value >= 1 ? 2 : 6,
+      })}`
+    : null;
+
 const EmptyState = ({ message }: { message: string }) => (
   <div className="flex items-center gap-2 rounded-xl border border-dashed border-card-border/40 bg-muted/10 px-3 py-4 text-sm text-muted-foreground">
     <Activity className="h-4 w-4 text-muted-foreground/70" />
@@ -58,38 +81,42 @@ export const PersonalWalletStats = ({
   redemptions,
   isLoading,
   wallet,
-  onDebtCalculatorClick,
+  tokenPricesUsd,
 }: PersonalWalletStatsProps) => {
   const { account } = wallet;
   const normalizedAccount = account?.toLowerCase() ?? null;
   const chainId = useChainId();
   const activeChainId = chainId ?? MezoChain.id;
-  const contracts = useMemo(
-    () => getMezoContracts(activeChainId),
-    [activeChainId]
-  );
-  const musdTokenAddress =
-    contracts.tokens?.MUSD.address ?? MezoTokens.MUSD.address;
-  const { data: btcBalance, isFetching: isBtcBalanceFetching } = useBalance({
-    address: account ? (account as `0x${string}`) : undefined,
-    chainId: activeChainId,
-    query: {
-      enabled: Boolean(account),
-      refetchInterval: account ? 30_000 : false,
-    },
+  const publicClient = usePublicClient({ chainId: activeChainId });
+  const [activeTab, setActiveTab] = useState<MainTab>("balance");
+  const [activityTab, setActivityTab] = useState<ActivityTab>("redemptions");
+
+  const balancesQuery = useQuery<KnownTokenBalance[]>({
+    queryKey: ["wallet-known-token-balances", account, activeChainId, tokenPricesUsd],
+    enabled: Boolean(account && publicClient),
+    refetchInterval: account ? 30_000 : false,
+    queryFn: () =>
+      getKnownMezoTokenBalances(
+        publicClient as PublicClient,
+        account as `0x${string}`,
+        {
+          chainId: activeChainId,
+          tokenPricesUsd,
+        }
+      ),
   });
-  const { data: musdBalance, isFetching: isMusdBalanceFetching } = useBalance({
-    address: account ? (account as `0x${string}`) : undefined,
-    chainId: activeChainId,
-    token: musdTokenAddress as `0x${string}`,
-    query: {
-      enabled: Boolean(account),
-      refetchInterval: account ? 30_000 : false,
-    },
+
+  const veNftsQuery = useQuery<VeNftLock[]>({
+    queryKey: ["wallet-ve-nfts", account, activeChainId],
+    enabled: Boolean(account && publicClient),
+    refetchInterval: account ? 30_000 : false,
+    queryFn: () =>
+      getWalletVeNfts(
+        publicClient as PublicClient,
+        account as `0x${string}`,
+        { chainId: activeChainId }
+      ),
   });
-  const [activityTab, setActivityTab] = useState<
-    "redemptions" | "liquidations"
-  >("redemptions");
 
   const troveRiskMap = useMemo(() => {
     const sortedTroves = [...troves].sort((a, b) => {
@@ -165,36 +192,375 @@ export const PersonalWalletStats = ({
   );
 
   const isDisplayingData = Boolean(account);
-  const btcBalanceLabel = account
-    ? isBtcBalanceFetching
-      ? "Fetching…"
-      : btcBalance
-      ? `${Number(btcBalance.formatted).toLocaleString(undefined, {
-          maximumFractionDigits: 4,
-        })} ${btcBalance.symbol ?? "BTC"}`
-      : "0 BTC"
-    : "Connect wallet";
-  const musdBalanceLabel = account
-    ? isMusdBalanceFetching
-      ? "Fetching…"
-      : musdBalance
-      ? `${Number(musdBalance.formatted).toLocaleString(undefined, {
-          maximumFractionDigits: 2,
-        })} ${musdBalance.symbol ?? "MUSD"}`
-      : "0 MUSD"
-    : "Connect wallet";
-
-  const renderConnectMessage = () => (
-    <div className="flex flex-col gap-3 rounded-2xl border border-card-border/40 bg-card/20 p-6 text-sm text-muted-foreground sm:flex-row sm:items-center"></div>
-  );
+  const nonZeroBalances = balancesQuery.data ?? [];
+  const veNfts = veNftsQuery.data ?? [];
+  const isBalanceFetching = balancesQuery.isFetching;
 
   const renderSkeleton = () => (
-    <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
-      <div className="space-y-4">
-        <Skeleton className="h-16 rounded-2xl" />
-        <Skeleton className="h-80 rounded-2xl" />
+    <div className="space-y-4">
+      <Skeleton className="h-16 rounded-2xl" />
+      <Skeleton className="h-80 rounded-2xl" />
+    </div>
+  );
+
+  const renderBalances = () => (
+    <div className="rounded-2xl border border-card-border/40 bg-card/30 p-5">
+      <div className="mb-4">
+        <p className="text-xs uppercase text-muted-foreground">Balances</p>
+        <p className="text-2xl font-semibold">
+          {isBalanceFetching ? "Fetching..." : `${nonZeroBalances.length} assets`}
+        </p>
       </div>
-      <Skeleton className="h-[420px] rounded-2xl" />
+      {isBalanceFetching && nonZeroBalances.length === 0 ? (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <Skeleton key={index} className="h-24 rounded-xl" />
+          ))}
+        </div>
+      ) : nonZeroBalances.length === 0 ? (
+        <EmptyState message="No non-zero balances found for known Mezo tokens." />
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {nonZeroBalances.map((balance) => (
+            <div
+              key={balance.symbol}
+              className="rounded-xl border border-card-border/40 bg-background/50 p-4"
+            >
+              <p className="text-xs text-muted-foreground">{balance.symbol}</p>
+              <p className="mt-1 text-lg font-semibold text-foreground">
+                {formatBalance(balance.amount, balance.symbol)}
+                {balance.valueUsd !== null ? (
+                  <span className="ml-2 text-sm font-medium text-muted-foreground">
+                    ({formatUsd(balance.valueUsd)})
+                  </span>
+                ) : null}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  const renderVeNfts = () => (
+    <div className="rounded-2xl border border-card-border/40 bg-card/30 p-5">
+      <div className="mb-4">
+        <p className="text-xs uppercase text-muted-foreground">ve NFT</p>
+        <p className="text-2xl font-semibold">
+          {veNftsQuery.isFetching ? "Fetching..." : `${veNfts.length} locks`}
+        </p>
+      </div>
+      {veNftsQuery.isFetching && veNfts.length === 0 ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {Array.from({ length: 2 }).map((_, index) => (
+            <Skeleton key={index} className="h-28 rounded-xl" />
+          ))}
+        </div>
+      ) : veNfts.length === 0 ? (
+        <EmptyState message="No veBTC or veMEZO locks found for this wallet." />
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {veNfts.map((lock) => {
+            const unlockDate =
+              lock.unlockTime && lock.unlockTime > 0n
+                ? new Date(Number(lock.unlockTime) * 1000).toLocaleDateString()
+                : "—";
+            return (
+              <div
+                key={`${lock.escrow}-${lock.tokenId.toString()}`}
+                className="rounded-xl border border-card-border/40 bg-background/50 p-4"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs text-muted-foreground">
+                      {lock.escrow}
+                    </p>
+                    <p className="text-lg font-semibold">
+                      NFT #{lock.tokenId.toString()}
+                    </p>
+                  </div>
+                  <Badge variant="secondary" className="font-mono text-xs">
+                    {truncateAddress(lock.contractAddress)}
+                  </Badge>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Locked</p>
+                    <p className="font-semibold">
+                      {lock.lockedAmountFormatted
+                        ? formatNumber(Number(lock.lockedAmountFormatted), {
+                            minimumFractionDigits: 4,
+                            maximumFractionDigits: 4,
+                          })
+                        : "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">
+                      Voting power
+                    </p>
+                    <p className="font-semibold">
+                      {lock.votingPowerFormatted
+                        ? formatNumber(Number(lock.votingPowerFormatted), {
+                            minimumFractionDigits: 4,
+                            maximumFractionDigits: 4,
+                          })
+                        : "—"}
+                    </p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-xs text-muted-foreground">Unlock</p>
+                    <p className="font-semibold">{unlockDate}</p>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+
+  const renderTroves = () => (
+    <div className="rounded-2xl border border-card-border/40 bg-card/30 p-5">
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-xs uppercase text-muted-foreground">
+            Current troves
+          </p>
+          <p className="text-2xl font-semibold">
+            {userTroves.length > 0
+              ? `${formatNumber(userTroves.length)} active`
+              : "No active troves"}
+          </p>
+        </div>
+        <div className="grid w-full grid-cols-2 gap-3 text-sm sm:w-auto">
+          <div className="rounded-xl border border-card-border/40 bg-background/60 p-3">
+            <p className="text-xs text-muted-foreground">Collateral</p>
+            <p className="text-lg font-semibold">
+              {formatNumber(totalCollateral, {
+                minimumFractionDigits: 4,
+                maximumFractionDigits: 4,
+              })}{" "}
+              BTC
+            </p>
+          </div>
+          <div className="rounded-xl border border-card-border/40 bg-background/60 p-3">
+            <p className="text-xs text-muted-foreground">Debt</p>
+            <p className="text-lg font-semibold">
+              {formatNumber(totalDebt, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}{" "}
+              MUSD
+            </p>
+          </div>
+        </div>
+      </div>
+      {userTroves.length === 0 ? (
+        <EmptyState message="No troves found for this wallet." />
+      ) : (
+        <div className="space-y-3">
+          {userTroves.map((trove) => {
+            const troveKey = getTroveKey(trove);
+            const riskStats = troveRiskMap.get(troveKey);
+            return (
+              <div
+                key={troveKey}
+                className="rounded-xl border border-card-border/40 bg-background/50 p-4"
+              >
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="text-xs text-muted-foreground">
+                    Updated {formatDateTime(trove.updated_at)}
+                  </div>
+                  <Badge variant="secondary" className="text-xs font-bold">
+                    {formatNumber(trove.collaterization_ratio * 100, {
+                      minimumFractionDigits: 1,
+                      maximumFractionDigits: 1,
+                    })}
+                    % CR
+                  </Badge>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Collateral</p>
+                    <p className="font-semibold">
+                      {formatNumber(trove.collateral, {
+                        minimumFractionDigits: 4,
+                        maximumFractionDigits: 4,
+                      })}{" "}
+                      BTC
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">
+                      Principal debt
+                    </p>
+                    <p className="font-semibold">
+                      {formatNumber(trove.principal_debt, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}{" "}
+                      MUSD
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">
+                      Accrued interest
+                    </p>
+                    <p className="font-semibold">
+                      {formatNumber(trove.interest, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}{" "}
+                      MUSD
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">
+                      Liquidation price
+                    </p>
+                    <p className="font-semibold">
+                      {trove.collateral > 0
+                        ? `$${formatNumber(
+                            ((trove.principal_debt + trove.interest) *
+                              MIN_COLLATERAL_RATIO) /
+                              trove.collateral,
+                            {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            }
+                          )}`
+                        : "—"}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-4 rounded-xl border border-card-border/60 bg-card/20 p-4">
+                  <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
+                    <span>Redemption position</span>
+                    <Tooltip delayDuration={150}>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          className="text-muted-foreground/70 transition hover:text-muted-foreground"
+                          aria-label="Redemption position details"
+                        >
+                          <Info className="h-3.5 w-3.5" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-xs normal-case">
+                        Troves are redeemed in order of collateral ratio. Fewer
+                        troves and BTC ahead indicate higher redemption risk.
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center gap-6 text-sm">
+                    <div>
+                      <p className="text-xs text-muted-foreground">
+                        Troves ahead
+                      </p>
+                      <p className="text-xl font-semibold">
+                        {formatNumber(riskStats?.trovesAhead ?? 0)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">BTC ahead</p>
+                      <p className="text-xl font-semibold">
+                        {formatNumber(riskStats?.collateralAhead ?? 0, {
+                          minimumFractionDigits: 4,
+                          maximumFractionDigits: 4,
+                        })}{" "}
+                        BTC
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+
+  const renderActivity = () => (
+    <div className="rounded-2xl border border-card-border/40 bg-card/30 p-5">
+      <Tabs
+        value={activityTab}
+        onValueChange={(value) => setActivityTab(value as ActivityTab)}
+      >
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs uppercase text-muted-foreground">Activity</p>
+          </div>
+          <TabsList className="flex w-full flex-wrap gap-2 bg-transparent p-0 sm:w-auto sm:flex-nowrap sm:bg-muted/10 sm:p-1">
+            <TabsTrigger
+              value="redemptions"
+              className="flex-1 min-w-[140px] sm:flex-none"
+            >
+              Redemptions
+              <Badge variant="secondary" className="ml-2">
+                {formatNumber(userRedemptions.length)}
+              </Badge>
+            </TabsTrigger>
+            <TabsTrigger
+              value="liquidations"
+              className="flex-1 min-w-[140px] sm:flex-none"
+            >
+              Liquidations
+              <Badge variant="secondary" className="ml-2">
+                {formatNumber(userLiquidations.length)}
+              </Badge>
+            </TabsTrigger>
+          </TabsList>
+        </div>
+
+        <TabsContent value="redemptions" className="mt-0 space-y-3">
+          {userRedemptions.length === 0 ? (
+            <EmptyState message="No redemptions affecting this wallet." />
+          ) : (
+            userRedemptions.slice(0, 5).map((redemption) => (
+              <div
+                key={redemption.id}
+                className="rounded-xl border border-card-border/40 bg-background/50 p-3 text-sm"
+              >
+                <ActivityHeader
+                  timestamp={redemption.block_timestamp}
+                  txHash={redemption.tx_hash}
+                />
+                <div className="mt-2 grid grid-cols-2 gap-3">
+                  <ActivityValue label="Attempted" value={redemption.attempted_amount} unit="MUSD" />
+                  <ActivityValue label="Actual" value={redemption.actual_amount} unit="MUSD" />
+                  <ActivityValue label="Collateral sent" value={redemption.collateral_sent} unit="BTC" decimals={4} />
+                  <ActivityValue label="Fee" value={redemption.collateral_fee} unit="BTC" decimals={4} />
+                </div>
+              </div>
+            ))
+          )}
+        </TabsContent>
+
+        <TabsContent value="liquidations" className="mt-0 space-y-3">
+          {userLiquidations.length === 0 ? (
+            <EmptyState message="No liquidations for this wallet." />
+          ) : (
+            userLiquidations.slice(0, 5).map((liquidation) => (
+              <div
+                key={liquidation.id}
+                className="rounded-xl border border-card-border/40 bg-background/50 p-3 text-sm"
+              >
+                <ActivityHeader
+                  timestamp={liquidation.block_timestamp}
+                  txHash={liquidation.tx_hash}
+                />
+                <div className="mt-2 grid grid-cols-2 gap-3">
+                  <ActivityValue label="Debt repaid" value={liquidation.debt} unit="MUSD" />
+                  <ActivityValue label="Collateral" value={liquidation.collateral} unit="BTC" decimals={4} />
+                </div>
+              </div>
+            ))
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 
@@ -221,400 +587,117 @@ export const PersonalWalletStats = ({
               {truncateAddress(account)}
             </Badge>
           )}
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            {account && onDebtCalculatorClick && (
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={onDebtCalculatorClick}
-                className="border border-primary bg-transparent text-primary hover:bg-primary/10 hover:text-primary sm:order-1"
-              >
-                Debt calculator
-              </Button>
-            )}
-            <WalletConnectButton />
-          </div>
+          <WalletConnectButton />
         </div>
       </div>
 
-      {isDisplayingData && (
-        <>
-          {isLoading ? (
-            renderSkeleton()
-          ) : (
-            <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
-              <div className="space-y-4">
-                <div className="rounded-2xl border border-card-border/40 bg-card/20 px-4 py-3">
-                  <div className="flex flex-wrap items-center gap-6 text-sm">
-                    <div className="min-w-[140px]">
-                      <p className="text-xs text-muted-foreground">BTC</p>
-                      <p className="text-base font-semibold text-foreground">
-                        {btcBalanceLabel}
-                      </p>
-                    </div>
-                    <div className="min-w-[140px]">
-                      <p className="text-xs text-muted-foreground">MUSD</p>
-                      <p className="text-base font-semibold text-foreground">
-                        {musdBalanceLabel}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-card-border/40 bg-card/30 p-5">
-                  <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <p className="text-xs uppercase text-muted-foreground">
-                        Current troves
-                      </p>
-                      <p className="text-2xl font-semibold">
-                        {userTroves.length > 0
-                          ? `${formatNumber(userTroves.length)} active`
-                          : "No active troves"}
-                      </p>
-                    </div>
-                    <div className="grid w-full grid-cols-2 gap-3 text-sm sm:w-auto sm:grid-cols-2">
-                      <div className="rounded-xl border border-card-border/40 bg-background/60 p-3">
-                        <p className="text-xs text-muted-foreground">
-                          Collateral
-                        </p>
-                        <p className="text-lg font-semibold">
-                          {formatNumber(totalCollateral, {
-                            minimumFractionDigits: 4,
-                            maximumFractionDigits: 4,
-                          })}{" "}
-                          BTC
-                        </p>
-                      </div>
-                      <div className="rounded-xl border border-card-border/40 bg-background/60 p-3">
-                        <p className="text-xs text-muted-foreground">Debt</p>
-                        <p className="text-lg font-semibold">
-                          {formatNumber(totalDebt, {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}{" "}
-                          MUSD
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  {userTroves.length === 0 ? (
-                    <EmptyState message="No troves found for this wallet." />
-                  ) : (
-                    <div className="space-y-3">
-                      {userTroves.map((trove) => {
-                        const troveKey = getTroveKey(trove);
-                        const riskStats = troveRiskMap.get(troveKey);
-                        return (
-                          <div
-                            key={troveKey}
-                            className="rounded-xl border border-card-border/40 bg-background/50 p-4"
-                          >
-                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                              <div className="text-xs text-muted-foreground">
-                                Updated {formatDateTime(trove.updated_at)}
-                              </div>
-                              <Badge
-                                variant="secondary"
-                                className="text-xs font-bold"
-                              >
-                                {formatNumber(
-                                  trove.collaterization_ratio * 100,
-                                  {
-                                    minimumFractionDigits: 1,
-                                    maximumFractionDigits: 1,
-                                  }
-                                )}
-                                % CR
-                              </Badge>
-                            </div>
-                            <div className="mt-3 grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
-                              <div>
-                                <p className="text-xs text-muted-foreground">
-                                  Collateral
-                                </p>
-                                <p className="font-semibold">
-                                  {formatNumber(trove.collateral, {
-                                    minimumFractionDigits: 4,
-                                    maximumFractionDigits: 4,
-                                  })}{" "}
-                                  BTC
-                                </p>
-                              </div>
-                              <div>
-                                <p className="text-xs text-muted-foreground">
-                                  Principal debt
-                                </p>
-                                <p className="font-semibold">
-                                  {formatNumber(trove.principal_debt, {
-                                    minimumFractionDigits: 2,
-                                    maximumFractionDigits: 2,
-                                  })}{" "}
-                                  MUSD
-                                </p>
-                              </div>
-                              <div>
-                                <p className="text-xs text-muted-foreground">
-                                  Accrued interest
-                                </p>
-                                <p className="font-semibold">
-                                  {formatNumber(trove.interest, {
-                                    minimumFractionDigits: 2,
-                                    maximumFractionDigits: 2,
-                                  })}{" "}
-                                  MUSD
-                                </p>
-                              </div>
-                              <div>
-                                <p className="text-xs text-muted-foreground">
-                                  Liquidation price
-                                </p>
-                                <p className="font-semibold">
-                                  {trove.collateral > 0
-                                    ? `$${formatNumber(
-                                        ((trove.principal_debt +
-                                          trove.interest) *
-                                          MIN_COLLATERAL_RATIO) /
-                                          trove.collateral,
-                                        {
-                                          minimumFractionDigits: 2,
-                                          maximumFractionDigits: 2,
-                                        }
-                                      )}`
-                                    : "—"}
-                                </p>
-                              </div>
-                            </div>
-                            <div className="mt-4 rounded-xl border border-card-border/60 bg-card/20 p-4">
-                            <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
-                              <span>Redemption position</span>
-                              <Tooltip delayDuration={150}>
-                                <TooltipTrigger asChild>
-                                  <button
-                                    type="button"
-                                    className="text-muted-foreground/70 transition hover:text-muted-foreground"
-                                    aria-label="Redemption position details"
-                                  >
-                                    <Info className="h-3.5 w-3.5" />
-                                  </button>
-                                </TooltipTrigger>
-                                <TooltipContent
-                                  side="top"
-                                  className="max-w-xs normal-case"
-                                >
-                                  Troves are redeemed in order of collateral
-                                  ratio. Fewer troves and BTC ahead indicate
-                                  higher redemption risk.
-                                </TooltipContent>
-                              </Tooltip>
-                            </div>
-                            <div className="mt-3 flex flex-wrap items-center gap-6 text-sm">
-                              <div>
-                                <p className="text-xs text-muted-foreground">
-                                  Troves ahead
-                                  </p>
-                                  <p className="text-xl font-semibold">
-                                    {formatNumber(
-                                      riskStats?.trovesAhead ?? 0
-                                    )}
-                                  </p>
-                                </div>
-                                <div>
-                                  <p className="text-xs text-muted-foreground">
-                                    BTC ahead
-                                  </p>
-                                  <p className="text-xl font-semibold">
-                                    {formatNumber(
-                                      riskStats?.collateralAhead ?? 0,
-                                      {
-                                        minimumFractionDigits: 4,
-                                        maximumFractionDigits: 4,
-                                      }
-                                    )}{" "}
-                                    BTC
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-card-border/40 bg-card/30 p-5">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-xs uppercase text-muted-foreground">
-                      Activity
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1 rounded-full border border-card-border/50 bg-background/60 p-1">
-                    <Button
-                      size="sm"
-                      variant={
-                        activityTab === "redemptions" ? "secondary" : "ghost"
-                      }
-                      className="h-8 rounded-full px-3 text-xs"
-                      onClick={() => setActivityTab("redemptions")}
-                    >
-                      Redemptions ({formatNumber(userRedemptions.length)})
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={
-                        activityTab === "liquidations" ? "secondary" : "ghost"
-                      }
-                      className="h-8 rounded-full px-3 text-xs"
-                      onClick={() => setActivityTab("liquidations")}
-                    >
-                      Liquidations ({formatNumber(userLiquidations.length)})
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="mt-4 space-y-3">
-                  {activityTab === "redemptions" ? (
-                    userRedemptions.length === 0 ? (
-                      <EmptyState message="No redemptions affecting this wallet." />
-                    ) : (
-                      userRedemptions.slice(0, 5).map((redemption) => (
-                        <div
-                          key={redemption.id}
-                          className="rounded-xl border border-card-border/40 bg-background/50 p-3 text-sm"
-                        >
-                          <div className="flex items-center justify-between text-xs text-muted-foreground">
-                            <span>
-                              {formatDateTime(redemption.block_timestamp)}
-                            </span>
-                            <button
-                              className="inline-flex items-center gap-1 text-primary hover:underline"
-                              onClick={() =>
-                                window.open(
-                                  `https://explorer.mezo.org/tx/${redemption.tx_hash}`,
-                                  "_blank"
-                                )
-                              }
-                            >
-                              View
-                              <ExternalLink className="h-3 w-3" />
-                            </button>
-                          </div>
-                          <div className="mt-2 grid grid-cols-2 gap-3">
-                            <div>
-                              <p className="text-xs text-muted-foreground">
-                                Attempted
-                              </p>
-                              <p className="font-semibold">
-                                {formatNumber(redemption.attempted_amount, {
-                                  minimumFractionDigits: 2,
-                                  maximumFractionDigits: 2,
-                                })}{" "}
-                                MUSD
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-xs text-muted-foreground">
-                                Actual
-                              </p>
-                              <p className="font-semibold">
-                                {formatNumber(redemption.actual_amount, {
-                                  minimumFractionDigits: 2,
-                                  maximumFractionDigits: 2,
-                                })}{" "}
-                                MUSD
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-xs text-muted-foreground">
-                                Collateral sent
-                              </p>
-                              <p className="font-semibold">
-                                {formatNumber(redemption.collateral_sent, {
-                                  minimumFractionDigits: 4,
-                                  maximumFractionDigits: 4,
-                                })}{" "}
-                                BTC
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-xs text-muted-foreground">
-                                Fee
-                              </p>
-                              <p className="font-semibold">
-                                {formatNumber(redemption.collateral_fee, {
-                                  minimumFractionDigits: 4,
-                                  maximumFractionDigits: 4,
-                                })}{" "}
-                                BTC
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    )
-                  ) : userLiquidations.length === 0 ? (
-                    <EmptyState message="No liquidations for this wallet." />
-                  ) : (
-                    userLiquidations.slice(0, 5).map((liquidation) => (
-                      <div
-                        key={liquidation.id}
-                        className="rounded-xl border border-card-border/40 bg-background/50 p-3 text-sm"
-                      >
-                        <div className="flex items-center justify-between text-xs text-muted-foreground">
-                          <span>
-                            {formatDateTime(liquidation.block_timestamp)}
-                          </span>
-                          <button
-                            className="inline-flex items-center gap-1 text-primary hover:underline"
-                            onClick={() =>
-                              window.open(
-                                `https://explorer.mezo.org/tx/${liquidation.tx_hash}`,
-                                "_blank"
-                              )
-                            }
-                          >
-                            View
-                            <ExternalLink className="h-3 w-3" />
-                          </button>
-                        </div>
-                        <div className="mt-2 grid grid-cols-2 gap-3">
-                          <div>
-                            <p className="text-xs text-muted-foreground">
-                              Debt repaid
-                            </p>
-                            <p className="font-semibold">
-                              {formatNumber(liquidation.debt, {
-                                minimumFractionDigits: 2,
-                                maximumFractionDigits: 2,
-                              })}{" "}
-                              MUSD
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">
-                              Collateral
-                            </p>
-                            <p className="font-semibold">
-                              {formatNumber(liquidation.collateral, {
-                                minimumFractionDigits: 4,
-                                maximumFractionDigits: 4,
-                              })}{" "}
-                              BTC
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
+      {isDisplayingData ? (
+        isLoading ? (
+          renderSkeleton()
+        ) : (
+          <Tabs
+            value={activeTab}
+            onValueChange={(value) => setActiveTab(value as MainTab)}
+          >
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <TabsList className="flex w-full flex-wrap gap-2 bg-transparent p-0 sm:w-auto sm:flex-nowrap sm:bg-muted/10 sm:p-1">
+                <TabsTrigger
+                  value="balance"
+                  className="flex-1 min-w-[120px] sm:flex-none"
+                >
+                  Balance
+                  <Badge variant="secondary" className="ml-2">
+                    {formatNumber(nonZeroBalances.length)}
+                  </Badge>
+                </TabsTrigger>
+                <TabsTrigger
+                  value="troves"
+                  className="flex-1 min-w-[120px] sm:flex-none"
+                >
+                  Troves
+                  <Badge variant="secondary" className="ml-2">
+                    {formatNumber(userTroves.length)}
+                  </Badge>
+                </TabsTrigger>
+                <TabsTrigger
+                  value="activity"
+                  className="flex-1 min-w-[120px] sm:flex-none"
+                >
+                  Activity
+                  <Badge variant="secondary" className="ml-2">
+                    {formatNumber(userRedemptions.length + userLiquidations.length)}
+                  </Badge>
+                </TabsTrigger>
+                <TabsTrigger
+                  value="ve-nft"
+                  className="flex-1 min-w-[120px] sm:flex-none"
+                >
+                  ve NFT
+                  <Badge variant="secondary" className="ml-2">
+                    {formatNumber(veNfts.length)}
+                  </Badge>
+                </TabsTrigger>
+              </TabsList>
             </div>
-          )}
-        </>
-      )}
+            <TabsContent value="balance" className="mt-4">
+              {renderBalances()}
+            </TabsContent>
+            <TabsContent value="troves" className="mt-4">
+              {renderTroves()}
+            </TabsContent>
+            <TabsContent value="activity" className="mt-4">
+              {renderActivity()}
+            </TabsContent>
+            <TabsContent value="ve-nft" className="mt-4">
+              {renderVeNfts()}
+            </TabsContent>
+          </Tabs>
+        )
+      ) : null}
     </Card>
   );
 };
+
+const ActivityHeader = ({
+  timestamp,
+  txHash,
+}: {
+  timestamp: string;
+  txHash: string;
+}) => (
+  <div className="flex items-center justify-between text-xs text-muted-foreground">
+    <span>{formatDateTime(timestamp)}</span>
+    <button
+      className="inline-flex items-center gap-1 text-primary hover:underline"
+      onClick={() =>
+        window.open(`https://explorer.mezo.org/tx/${txHash}`, "_blank")
+      }
+    >
+      View
+      <ExternalLink className="h-3 w-3" />
+    </button>
+  </div>
+);
+
+const ActivityValue = ({
+  label,
+  value,
+  unit,
+  decimals = 2,
+}: {
+  label: string;
+  value: number;
+  unit: string;
+  decimals?: number;
+}) => (
+  <div>
+    <p className="text-xs text-muted-foreground">{label}</p>
+    <p className="font-semibold">
+      {formatNumber(value, {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals,
+      })}{" "}
+      {unit}
+    </p>
+  </div>
+);

@@ -70,6 +70,7 @@ create table public.system_metrics_daily (
   debt double precision not null,
   tcr double precision not null,
   btc_price double precision not null,
+  mezo_usd_price double precision null,
   updated_at timestamp with time zone not null,
   constraint system_metrics_daily_pkey primary key (day)
 ) TABLESPACE pg_default;
@@ -84,6 +85,7 @@ create table public.system_snapshots (
   btc_price double precision not null,
   recorded_at timestamp with time zone not null,
   musd_to_usdc_price double precision null,
+  mezo_usd_price double precision null,
   constraint system_snapshots_pkey primary key (id)
 ) TABLESPACE pg_default;
 

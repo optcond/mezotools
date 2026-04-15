@@ -47,11 +47,33 @@ const MezoToolsLogo = (props: SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
+const formatCompactDistance = (value: string | null) => {
+  if (!value) return null;
+  const timestamp = new Date(value).getTime();
+  if (Number.isNaN(timestamp)) return null;
+
+  const diffMs = Math.max(Date.now() - timestamp, 0);
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) return "< 1 min";
+  if (minutes < 60) return `~${minutes} min`;
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `~${hours} hr`;
+
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `~${days} d`;
+
+  const months = Math.floor(days / 30);
+  return `> ${months} month${months === 1 ? "" : "s"}`;
+};
+
 interface HeaderProps {
   blockNumber: number | null;
   blockTimestamp: string | null;
   lastUpdatedAt: string | null;
   btcPrice: number;
+  mezoUsdPrice: number | null;
+  musdUsdPrice: number | null;
   isSyncing?: boolean;
   onBridgedAssetsClick?: () => void;
   onContractsClick?: () => void;
@@ -68,6 +90,8 @@ export const Header = ({
   blockTimestamp,
   lastUpdatedAt,
   btcPrice,
+  mezoUsdPrice,
+  musdUsdPrice,
   isSyncing,
   onBridgedAssetsClick,
   onContractsClick,
@@ -84,11 +108,24 @@ export const Header = ({
   const blockTimestampLabel = blockTimestamp
     ? formatDistanceToNow(new Date(blockTimestamp), { addSuffix: true })
     : null;
+  const compactUpdatedLabel = formatCompactDistance(lastUpdatedAt);
+  const compactIndexedLabel = formatCompactDistance(blockTimestamp);
+  const formatUsd = (
+    value: number | null,
+    minimumFractionDigits: number,
+    maximumFractionDigits: number,
+  ) =>
+    value !== null && Number.isFinite(value)
+      ? `$${value.toLocaleString(undefined, {
+          minimumFractionDigits,
+          maximumFractionDigits,
+        })}`
+      : "—";
 
   return (
     <header className="z-50 w-full glass-card border-b border-card-border/60 sm:sticky sm:top-0">
-      <div className="mx-auto flex max-w-[1280px] flex-col gap-3 px-4 py-3 sm:gap-4 sm:px-6 sm:py-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+      <div className="mx-auto flex max-w-[1280px] flex-col gap-2 px-4 py-2 sm:px-6 sm:py-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
           <div className="flex items-center gap-3">
             <MezoToolsLogo className="h-9 w-9 text-primary drop-shadow-[0_0_18px_hsl(var(--primary-glow)_/_0.25)]" />
             <h1 className="text-lg font-bold uppercase tracking-wider text-primary sm:text-xl">
@@ -150,9 +187,9 @@ export const Header = ({
               className="border border-primary bg-transparent text-primary hover:bg-primary/10 hover:text-primary"
               onClick={onBribesClick}
             >
-              Bribes
+              veBTC
             </Button>
-            <Button
+            {/* <Button
               size="sm"
               variant="ghost"
               className="hidden border border-primary bg-transparent text-primary hover:bg-primary/10 hover:text-primary sm:inline-flex"
@@ -167,7 +204,7 @@ export const Header = ({
               onClick={onContractsClick}
             >
               Contracts
-            </Button>
+            </Button> */}
             <Button
               size="sm"
               variant="ghost"
@@ -194,7 +231,7 @@ export const Header = ({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 text-xs sm:gap-4 sm:text-sm">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs sm:text-sm">
           {isSyncing && (
             <Badge variant="secondary" className="flex items-center gap-1">
               <Loader2 className="h-3 w-3 animate-spin" />
@@ -202,8 +239,10 @@ export const Header = ({
             </Badge>
           )}
           <span className="text-muted-foreground">
-            Last update{" "}
-            <span className="font-medium text-foreground">{updatedLabel}</span>
+            Update{" "}
+            <span className="font-medium text-foreground">
+              {compactUpdatedLabel ?? updatedLabel}
+            </span>
           </span>
           <span className="text-muted-foreground">
             Block:{" "}
@@ -213,17 +252,25 @@ export const Header = ({
           </span>
           {blockTimestampLabel && (
             <span className="text-muted-foreground">
-              Indexed block {blockTimestampLabel}
+              Indexed {compactIndexedLabel ?? blockTimestampLabel}
             </span>
           )}
           <span className="text-muted-foreground">
             BTC:{" "}
             <span className="font-semibold text-foreground">
-              $
-              {btcPrice.toLocaleString(undefined, {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}
+              {formatUsd(btcPrice, 2, 2)}
+            </span>
+          </span>
+          <span className="text-muted-foreground">
+            MEZO:{" "}
+            <span className="font-semibold text-foreground">
+              {formatUsd(mezoUsdPrice, 2, 4)}
+            </span>
+          </span>
+          <span className="text-muted-foreground">
+            MUSD:{" "}
+            <span className="font-semibold text-foreground">
+              {formatUsd(musdUsdPrice, 2, 4)}
             </span>
           </span>
         </div>

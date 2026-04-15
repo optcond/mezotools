@@ -25,6 +25,7 @@ import { AllTrovesSheet } from "@/components/AllTrovesSheet";
 import { LiquidationsRedemptionsSheet } from "@/components/LiquidationsRedemptionsSheet";
 import { CustomizeSheet } from "@/components/CustomizeSheet";
 import { useMonitorData } from "@/hooks/useMonitorData";
+import { usePriceFeedHistory } from "@/hooks/usePriceFeedHistory";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -149,6 +150,16 @@ const Dashboard = () => {
     refetch,
     lastUpdatedAt,
   } = useMonitorData();
+  const { stats: musdPriceStats } = usePriceFeedHistory({
+    source: "musd_usdc",
+    hours: 24,
+    limit: 300,
+  });
+  const { stats: mezoPriceStats } = usePriceFeedHistory({
+    source: "mezo_usd",
+    hours: 24,
+    limit: 300,
+  });
   const wallet = useWallet();
   const [isActionsOpen, setIsActionsOpen] = useState(false);
   const [draggingWidget, setDraggingWidget] =
@@ -218,20 +229,37 @@ const Dashboard = () => {
       0
     );
     const btcPrice = latestMetric?.btc_price ?? 0;
+    const mezoUsdPrice =
+      latestMetric?.mezo_usd_price ?? mezoPriceStats.latestPrice ?? null;
 
     const baseRatio =
       totalDebt > 0 ? (totalCollateral * btcPrice) / totalDebt : 0;
 
     return {
       tcr: baseRatio,
-      tcrMinus10:
-        totalDebt > 0 ? (totalCollateral * btcPrice * 0.9) / totalDebt : 0,
       totalCollateral,
       totalDebt,
       totalTroves: troves.length,
       btcPrice,
+      mezoUsdPrice,
     };
-  }, [troves, latestMetric]);
+  }, [troves, latestMetric, mezoPriceStats.latestPrice]);
+
+  const musdUsdPrice =
+    musdPriceStats.latestPrice !== null
+      ? musdPriceStats.latestPrice / 100000
+      : null;
+  const walletTokenPricesUsd = useMemo(
+    () => ({
+      BTC: systemMetrics.btcPrice || null,
+      cbBTC: systemMetrics.btcPrice || null,
+      MEZO: systemMetrics.mezoUsdPrice,
+      MUSD: musdUsdPrice,
+      USDC: 1,
+      USDT: 1,
+    }),
+    [systemMetrics.btcPrice, systemMetrics.mezoUsdPrice, musdUsdPrice]
+  );
 
   const riskBuckets = useMemo(() => {
     const buckets = {
@@ -399,7 +427,7 @@ const Dashboard = () => {
           redemptions={redemptions}
           isLoading={isLoading}
           wallet={wallet}
-            onDebtCalculatorClick={() => setSheetParam("debt-calculator")}
+          tokenPricesUsd={walletTokenPricesUsd}
         />
       </Suspense>
     ),
@@ -407,7 +435,7 @@ const Dashboard = () => {
       <Suspense fallback={<SystemStateFallback />}>
         <SystemStateSection
           tcr={systemMetrics.tcr}
-          tcrMinus10={systemMetrics.tcrMinus10}
+          mezoUsdPrice={systemMetrics.mezoUsdPrice}
           totalCollateral={systemMetrics.totalCollateral}
           totalDebt={systemMetrics.totalDebt}
           totalTroves={systemMetrics.totalTroves}
@@ -457,6 +485,8 @@ const Dashboard = () => {
         blockTimestamp={blockTimestamp}
         lastUpdatedAt={effectiveLastUpdated}
         btcPrice={systemMetrics.btcPrice}
+        mezoUsdPrice={systemMetrics.mezoUsdPrice}
+        musdUsdPrice={musdUsdPrice}
         isSyncing={isRefreshing}
         onBridgedAssetsClick={() => setSheetParam("bridged-assets")}
         onContractsClick={() => setSheetParam("contracts")}

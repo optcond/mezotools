@@ -58,7 +58,7 @@ const PRICE_FEED_TABS: PriceFeedTabConfig[] = [
     value: "musd-30d",
     label: "MUSD feed · 30D",
     source: "musd_usdc_4h",
-    hours: (24 / 4) * 30,
+    hours: 24 * 30,
     limit: 300,
     priceDivisor: 100000,
     heading: "MUSD / USDC 100k sell order (Last 30 Days)",
@@ -66,6 +66,30 @@ const PRICE_FEED_TABS: PriceFeedTabConfig[] = [
     highLabel: "30d High",
     lowLabel: "30d Low",
     emptyMessage: "No price feed updates recorded in the last 30 days.",
+  },
+  {
+    value: "mezo-1d",
+    label: "MEZO feed · 24H",
+    source: "mezo_usd",
+    hours: 24,
+    limit: 300,
+    heading: "MEZO / USD Pyth Feed (Last 24 Hours)",
+    changeLabel: "24h Change",
+    highLabel: "24h High",
+    lowLabel: "24h Low",
+    emptyMessage: "No MEZO price feed updates recorded in the last 24 hours.",
+  },
+  {
+    value: "mezo-30d",
+    label: "MEZO feed · 30D",
+    source: "mezo_usd_4h",
+    hours: 24 * 30,
+    limit: 300,
+    heading: "MEZO / USD Pyth Feed (Last 30 Days)",
+    changeLabel: "30d Change",
+    highLabel: "30d High",
+    lowLabel: "30d Low",
+    emptyMessage: "No MEZO price feed updates recorded in the last 30 days.",
   },
   {
     value: "btc",
@@ -476,22 +500,24 @@ export const PriceFeedHistory = () => {
   return (
     <Card className="glass-card p-6">
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-4">
           <div className="flex items-center gap-2 text-primary">
             <Activity className="h-5 w-5" />
             <h2 className="text-lg font-semibold">{activeConfig.heading}</h2>
           </div>
-          <TabsList className="order-last -mx-1 flex flex-nowrap items-center gap-2 overflow-x-auto bg-transparent p-0 lg:order-none lg:mx-0 lg:flex-wrap lg:bg-muted/10 lg:p-1">
-            {PRICE_FEED_TABS.map((tab) => (
-              <TabsTrigger
-                key={tab.value}
-                value={tab.value}
-                className="flex-none whitespace-nowrap px-3 py-2 text-xs sm:text-sm"
-              >
-                {tab.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <TabsList className="flex w-full flex-wrap gap-2 bg-transparent p-0 sm:w-auto sm:flex-nowrap sm:bg-muted/10 sm:p-1">
+              {PRICE_FEED_TABS.map((tab) => (
+                <TabsTrigger
+                  key={tab.value}
+                  value={tab.value}
+                  className="flex-1 min-w-[140px] whitespace-nowrap px-3 py-2 text-xs sm:flex-none sm:text-sm"
+                >
+                  {tab.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
         </div>
 
         {PRICE_FEED_TABS.map((tab) => (

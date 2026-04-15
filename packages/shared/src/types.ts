@@ -1,5 +1,8 @@
 import { Chain } from "viem";
 
+export const MezoBlockChainExplorer = "https://explorer.mezo.org/address";
+export const ZeroAddress = `0x0000000000000000000000000000000000000000`;
+
 export const MezoChain = {
   contracts: {
     multicall3: {
@@ -50,6 +53,10 @@ export const MezoTokens: Record<string, { address: string; decimals: number }> =
       address: "0x7b7C000000000000000000000000000000000000",
       decimals: 18,
     },
+    MEZO: {
+      address: "0x7B7c000000000000000000000000000000000001",
+      decimals: 18,
+    },
     MUSD: {
       address: "0xdD468A1DDc392dcdbEf6db6e34E89AA338F9F186",
       decimals: 18,
@@ -87,6 +94,17 @@ export const MezoTokens: Record<string, { address: string; decimals: number }> =
       decimals: 18,
     },
   };
+
+export const MezoTokenPriceSymbols: Record<string, string> = {
+  BTC: "BTC",
+  MEZO: "MEZO",
+  MUSD: "MUSD",
+  mcbBTC: "cbBTC",
+  mUSDT: "USDT",
+  mUSDC: "USDC",
+  mT: "T",
+  mSolvBTC: "SolvBTC",
+};
 
 export const EthTokens: Record<string, { address: string; decimals: number }> =
   {
@@ -127,6 +145,7 @@ export const AppContracts: Record<string, `0x${string}`> = {
   MEZO_VOTER: "0x48233cCC97B87Ba93bCA212cbEe48e3210211f03",
   MEZO_BRIBE_VOTING_REWARD: "0x94A9A494872BF7231D8378d0Aef7d32BA552E305",
   MEZO_VE: "0x3D4b1b884A7a1E59fE8589a3296EC8f8cBB6f279",
+  MEZO_VEMEZO: "0xb90fdAd3DFD180458D62Cc6acedc983D78E20122",
 };
 
 export type MezoProtocolContracts = {
@@ -139,6 +158,8 @@ export type MezoProtocolContracts = {
   voter: `0x${string}`;
   bribeVotingReward: `0x${string}`;
   ve: `0x${string}`;
+  veBTC?: `0x${string}`;
+  veMEZO?: `0x${string}` | null;
   tokens?: Record<string, { address: string; decimals: number }>;
 };
 
@@ -153,6 +174,8 @@ export const MezoContractsByChainId: Record<number, MezoProtocolContracts> = {
     voter: `0x48233cCC97B87Ba93bCA212cbEe48e3210211f03`,
     bribeVotingReward: `0x94A9A494872BF7231D8378d0Aef7d32BA552E305`,
     ve: `0x3D4b1b884A7a1E59fE8589a3296EC8f8cBB6f279`,
+    veBTC: `0x3D4b1b884A7a1E59fE8589a3296EC8f8cBB6f279`,
+    veMEZO: `0xb90fdAd3DFD180458D62Cc6acedc983D78E20122`,
     tokens: MezoTokens,
   },
   [MezoChainTestnet.id]: {
@@ -165,6 +188,8 @@ export const MezoContractsByChainId: Record<number, MezoProtocolContracts> = {
     voter: `0x0`,
     bribeVotingReward: `0x0`,
     ve: `0x0`,
+    veBTC: `0xB63fcCd03521Cf21907627bd7fA465C129479231`,
+    veMEZO: null,
     tokens: {
       MUSD: {
         address: `0x118917a40FAF1CD7a13dB0Ef56C86De7973Ac503`,
@@ -172,6 +197,10 @@ export const MezoContractsByChainId: Record<number, MezoProtocolContracts> = {
       },
       BTC: {
         address: "0x7b7C000000000000000000000000000000000000",
+        decimals: 18,
+      },
+      MEZO: {
+        address: "0x7B7c000000000000000000000000000000000001",
         decimals: 18,
       },
     },

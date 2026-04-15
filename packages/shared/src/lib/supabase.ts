@@ -25,7 +25,7 @@ import type {
 import type { BridgeAssetBalance } from "../bridge.types";
 import type { BridgeTransfer } from "./bridgeChecker";
 import type { ContractCreation } from "./contractChecker";
-import type { GaugeIncentive } from "./gaugesFetcher";
+import type { GaugeBribeTokenReward, GaugeIncentive } from "./gaugesFetcher";
 
 export function createSupabase(options: SupabaseOptions): SupabaseClient {
   return createClient(options.url, options.serviceKey, {
@@ -268,6 +268,31 @@ export class SupabaseRepository {
     return total / prices.length;
   }
 
+  async getAverageMezoUsdPriceSince(since: Date): Promise<number | null> {
+    const { data, error } = await this.from("system_snapshots")
+      .select("mezo_usd_price")
+      .gte("recorded_at", since.toISOString())
+      .returns<SystemSnapshotPriceRow[]>();
+
+    if (error) {
+      throw new Error(
+        `Failed to fetch system snapshots for average MEZO price: ${error.message}`
+      );
+    }
+
+    const rows = data ?? [];
+    const prices = rows
+      .map((row) => row.mezo_usd_price)
+      .filter((price): price is number => price !== null);
+
+    if (prices.length === 0) {
+      return null;
+    }
+
+    const total = prices.reduce((acc, price) => acc + price, 0);
+    return total / prices.length;
+  }
+
   async getLatestMusdToUsdcPrice(): Promise<number | null> {
     const { data, error } = await this.from("system_snapshots")
       .select("musd_to_usdc_price")
@@ -283,6 +308,23 @@ export class SupabaseRepository {
     }
 
     return data?.musd_to_usdc_price ?? null;
+  }
+
+  async getLatestMezoUsdPrice(): Promise<number | null> {
+    const { data, error } = await this.from("system_snapshots")
+      .select("mezo_usd_price")
+      .not("mezo_usd_price", "is", null)
+      .order("recorded_at", { ascending: false })
+      .limit(1)
+      .maybeSingle<SystemSnapshotPriceRow>();
+
+    if (error && error.code !== "PGRST116") {
+      throw new Error(
+        `Failed to fetch latest MEZO/USD price snapshot: ${error.message}`
+      );
+    }
+
+    return data?.mezo_usd_price ?? null;
   }
 
   async recordPrice(
@@ -331,6 +373,7 @@ export class SupabaseRepository {
       tcr: snapshot.ratio,
       btc_price: snapshot.btcPrice,
       musd_to_usdc_price: snapshot.musdToUsdcPrice,
+      mezo_usd_price: snapshot.mezoUsdPrice,
       recorded_at: new Date().toISOString(),
     };
 
@@ -356,6 +399,7 @@ export class SupabaseRepository {
       debt: snapshot.debt,
       tcr: snapshot.ratio,
       btc_price: snapshot.btcPrice,
+      mezo_usd_price: snapshot.mezoUsdPrice,
       updated_at: new Date().toISOString(),
     };
 
@@ -492,24 +536,26 @@ export class SupabaseRepository {
     }
 
     const updatedAt = new Date().toISOString();
-    const rows: GaugeRow[] = gauges.map((gauge) => {
-      const bribes: GaugeBribeRow[] = gauge.rewards.map((reward) => ({
-        token: reward.token.toLowerCase(),
-        amount: reward.amount.toString(),
-      }));
-
-      return {
-        gauge: gauge.gauge.toLowerCase(),
-        pool: gauge.pool.toLowerCase(),
-        pool_name: gauge.poolName ?? null,
-        bribe: gauge.bribe.toLowerCase(),
-        votes: gauge.votes.toString(),
-        duration: Number(gauge.duration),
-        epoch_start: Number(gauge.epochStart),
-        bribes,
-        updated_at: updatedAt,
-      };
+    const toBribeRow = (reward: GaugeBribeTokenReward): GaugeBribeRow => ({
+      token: reward.token.toLowerCase(),
+      amount: reward.amount.toString(),
+      previous_epoch_amount: reward.previousEpochAmount?.toString(),
+      next_epoch_amount: reward.nextEpochAmount?.toString(),
     });
+
+    const rows: GaugeRow[] = gauges.map((gauge) => ({
+      gauge: gauge.gauge.toLowerCase(),
+      pool: gauge.pool.toLowerCase(),
+      pool_name: gauge.poolName ?? null,
+      bribe: gauge.bribe.toLowerCase(),
+      fee: gauge.fee.toLowerCase(),
+      votes: gauge.votes.toString(),
+      duration: Number(gauge.duration),
+      epoch_start: Number(gauge.epochStart),
+      bribes: gauge.rewards.map(toBribeRow),
+      fees: gauge.fees.map(toBribeRow),
+      updated_at: updatedAt,
+    }));
 
     const { error } = await this.from("gauges").upsert(rows, {
       onConflict: "gauge",
@@ -518,5 +564,44 @@ export class SupabaseRepository {
     if (error) {
       throw new Error(`Failed to upsert gauges: ${error.message}`);
     }
+  }
+
+  async getGauges(): Promise<GaugeIncentive[]> {
+    const { data, error } = await this.from("gauges")
+      .select("*")
+      .returns<GaugeRow[]>();
+
+    if (error) {
+      throw new Error(`Failed to fetch gauges: ${error.message}`);
+    }
+
+    const ZERO = "0x0000000000000000000000000000000000000000";
+    return (data ?? []).map((row): GaugeIncentive => {
+      const epochStart = BigInt(row.epoch_start);
+      const toBribeTokenReward = (b: GaugeBribeRow): GaugeBribeTokenReward => ({
+        token: b.token as `0x${string}`,
+        amount: BigInt(b.amount),
+        epochStart,
+        previousEpochAmount: b.previous_epoch_amount
+          ? BigInt(b.previous_epoch_amount)
+          : undefined,
+        nextEpochAmount: b.next_epoch_amount
+          ? BigInt(b.next_epoch_amount)
+          : undefined,
+      });
+
+      return {
+        pool: row.pool as `0x${string}`,
+        poolName: row.pool_name ?? undefined,
+        gauge: row.gauge as `0x${string}`,
+        bribe: row.bribe as `0x${string}`,
+        fee: (row.fee ?? ZERO) as `0x${string}`,
+        votes: BigInt(row.votes),
+        duration: BigInt(row.duration),
+        epochStart,
+        rewards: ((row.bribes ?? []) as GaugeBribeRow[]).map(toBribeTokenReward),
+        fees: ((row.fees ?? []) as GaugeBribeRow[]).map(toBribeTokenReward),
+      };
+    });
   }
 }
