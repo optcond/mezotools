@@ -97,12 +97,12 @@ export const LiquidationsRedemptionsTable = ({
   );
 
   return (
-    <Tabs value={activeTab} onValueChange={setActiveTab}>
+    <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "liquidations" | "redemptions")}>
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <TabsList className="flex w-full flex-wrap gap-2 bg-transparent p-0 sm:w-auto sm:flex-nowrap sm:bg-muted/10 sm:p-1">
+        <TabsList className="grid grid-cols-2 gap-1.5 w-full h-auto bg-transparent p-0 sm:flex sm:h-10 sm:w-auto sm:bg-muted/10 sm:p-1">
           <TabsTrigger
             value="redemptions"
-            className="flex-1 min-w-[140px] sm:flex-none"
+            className="border border-border/50 rounded-sm sm:border-0 sm:flex-none"
           >
             Redemptions
             <Badge variant="secondary" className="ml-2">
@@ -111,7 +111,7 @@ export const LiquidationsRedemptionsTable = ({
           </TabsTrigger>
           <TabsTrigger
             value="liquidations"
-            className="flex-1 min-w-[140px] sm:flex-none"
+            className="border border-border/50 rounded-sm sm:border-0 sm:flex-none"
           >
             Liquidations
             <Badge variant="secondary" className="ml-2">

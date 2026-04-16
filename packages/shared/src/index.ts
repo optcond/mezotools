@@ -17,7 +17,7 @@ export type {
   KnownTokenBalance,
   KnownTokenBalanceOptions,
 } from "./lib/walletBalances";
-export { getWalletVeNfts } from "./lib/veNftFetcher";
+export { getWalletVeNfts, getEscrowTotalVotingPower } from "./lib/veNftFetcher";
 export type { VeNftLock, WalletVeNftOptions } from "./lib/veNftFetcher";
 export { GaugesFetcher } from "./lib/gaugesFetcher";
 export type { GaugeIncentive, GaugeBribeTokenReward } from "./lib/gaugesFetcher";

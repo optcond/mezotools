@@ -5,7 +5,7 @@ import {
   usePublicClient,
   useWalletClient,
 } from "wagmi";
-import { formatUnits, getAddress, parseUnits, type PublicClient } from "viem";
+import { formatUnits, parseUnits, type PublicClient } from "viem";
 import { Copy, RefreshCw, RotateCcw, Vote } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,10 +28,10 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import {
+  GaugesFetcher,
   MEZO_BC_EXPLORER,
   MezoChain,
   VeVoteFetcher,
-  VoterAbi,
   ZERO_ADDRESS,
   bigintSharePct,
   fetchMezoRewardTokenMarkets,
@@ -39,7 +39,6 @@ import {
   formatUsd,
   formatVotingPower,
   gaugeRowToIncentive,
-  getMezoContracts,
   incentivesToOpportunities,
   normalizeWeightsToVotingPower,
   projectGaugeBribeRewards,
@@ -112,7 +111,6 @@ export const VoteCalculatorSection = ({
   const activeChainId = chainId ?? MezoChain.id;
   const publicClient = usePublicClient({ chainId: activeChainId });
   const { data: walletClient } = useWalletClient({ chainId: activeChainId });
-  const contracts = useMemo(() => getMezoContracts(chainId), [chainId]);
 
   // ── state ──────────────────────────────────────────────────────────────
   const [gauges, setGauges] = useState<GaugeVoteOpportunity[]>([]);
@@ -352,32 +350,20 @@ export const VoteCalculatorSection = ({
 
   const onVote = async () => {
     const account = walletClient?.account;
-    if (!account || !publicClient || !selectedLock) return;
-    const entries = Object.entries(effectiveDraftVotesByPool).filter(
-      ([, w]) => w > 0n,
-    );
-    if (!entries.length) return;
-    // Checksum pool addresses for the contract call
-    const pools = entries.map(([pool]) => getAddress(pool));
-    const weights = entries.map(([, w]) => w);
+    if (!account || !vFetcher || !selectedLock) return;
 
     setTxState("pending");
     setTxHash(null);
     setError(null);
     try {
-      const { request } = await (publicClient as PublicClient).simulateContract(
-        {
-          address: contracts.voter,
-          abi: VoterAbi,
-          functionName: "vote",
-          args: [selectedLock.tokenId, pools, weights],
-          account,
-        },
+      const { request } = await vFetcher.simulateVote(
+        selectedLock.tokenId,
+        effectiveDraftVotesByPool,
+        account.address,
       );
       const hash = await walletClient.writeContract(request);
       setTxHash(hash);
       setTxState("success");
-      // Refresh to update hasVoted flag
       void reloadBase();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Vote transaction failed.");
@@ -387,20 +373,15 @@ export const VoteCalculatorSection = ({
 
   const onResetVote = async () => {
     const account = walletClient?.account;
-    if (!account || !publicClient || !selectedLock) return;
+    if (!account || !vFetcher || !selectedLock) return;
 
     setTxState("pending");
     setTxHash(null);
     setError(null);
     try {
-      const { request } = await (publicClient as PublicClient).simulateContract(
-        {
-          address: contracts.voter,
-          abi: VoterAbi,
-          functionName: "reset",
-          args: [selectedLock.tokenId],
-          account,
-        },
+      const { request } = await vFetcher.simulateReset(
+        selectedLock.tokenId,
+        account.address,
       );
       const hash = await walletClient.writeContract(request);
       setTxHash(hash);
@@ -422,11 +403,7 @@ export const VoteCalculatorSection = ({
     try {
       const [gaugeRowsResult, nextMaxVotingNum, nextLocks] = await Promise.all([
         supabase.from("gauges").select("*").returns<GaugeSupabaseRow[]>(),
-        (publicClient as PublicClient).readContract({
-          address: contracts.voter,
-          abi: VoterAbi,
-          functionName: "maxVotingNum",
-        }) as Promise<bigint>,
+        vFetcher ? vFetcher.getMaxVotingNum() : Promise.resolve(8n),
         address && vFetcher
           ? vFetcher.getLocks(address)
           : Promise.resolve([] as VeLockSummary[]),
@@ -478,7 +455,7 @@ export const VoteCalculatorSection = ({
     } finally {
       setLoading(false);
     }
-  }, [publicClient, address, vFetcher, contracts]);
+  }, [publicClient, address, vFetcher]);
 
   // ── effects ───────────────────────────────────────────────────────────────
 
@@ -577,12 +554,14 @@ export const VoteCalculatorSection = ({
 
   const hasWallet = !!address;
   const hasLocks = locks.length > 0;
-  const canVote =
-    !!selectedLock && !selectedLock.hasVoted && !!walletClient?.account;
-  // Reset abstains for current epoch (clears carried-over weights).
-  // Only callable before voting this epoch — same window as vote.
-  const canReset =
-    !!selectedLock && !selectedLock.hasVoted && !!walletClient?.account;
+  // Both vote and reset are only available when the lock has NOT voted in the current epoch
+  const canActOnLock =
+    !!selectedLock &&
+    !selectedLock.votedInCurrentEpoch &&
+    !!walletClient?.account;
+  const canVote = canActOnLock;
+  // Reset only makes sense when there are stale votes from a previous epoch to clear
+  const canReset = canActOnLock && !!selectedLock?.hasVoted;
 
   return (
     <div className="flex flex-col gap-4">
@@ -680,7 +659,7 @@ export const VoteCalculatorSection = ({
             {txState === "pending" ? "Voting…" : "Vote"}
           </Button>
         )}
-        {canReset && (
+        {canVote && (
           <Button
             variant="outline"
             size="sm"

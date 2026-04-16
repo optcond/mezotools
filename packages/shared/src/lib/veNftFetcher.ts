@@ -48,12 +48,27 @@ const VeNftAbi = [
         components: [
           { internalType: "int128", name: "amount", type: "int128" },
           { internalType: "uint256", name: "end", type: "uint256" },
+          { internalType: "bool", name: "isPermanent", type: "bool" },
         ],
         internalType: "struct IVotingEscrow.LockedBalance",
         name: "",
         type: "tuple",
       },
     ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "_tokenId", type: "uint256" }],
+    name: "votingPowerOfNFT",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "totalVotingPower",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
     stateMutability: "view",
     type: "function",
   },
@@ -74,6 +89,7 @@ type MulticallResult = {
 type LockedBalanceResult = {
   amount: bigint | number | string;
   end: bigint | number | string;
+  isPermanent?: boolean;
 };
 
 export interface VeNftLock {
@@ -85,6 +101,7 @@ export interface VeNftLock {
   votingPower: bigint | null;
   votingPowerFormatted: string | null;
   unlockTime: bigint | null;
+  isPermanent: boolean;
 }
 
 export interface WalletVeNftOptions {
@@ -140,6 +157,7 @@ const getWalletVeNftsForContract = async (
   try {
     const tokenIds = await getOwnedTokenIds(client, owner, contractAddress, options);
 
+    // 4 calls per token: ownerOf, locked, balanceOfNFT, votingPowerOfNFT
     const detailResults = (await client.multicall({
       allowFailure: true,
       contracts: tokenIds.flatMap((tokenId) => [
@@ -161,13 +179,20 @@ const getWalletVeNftsForContract = async (
           functionName: "balanceOfNFT",
           args: [tokenId],
         } as const,
+        {
+          address: contractAddress,
+          abi: VeNftAbi,
+          functionName: "votingPowerOfNFT",
+          args: [tokenId],
+        } as const,
       ]),
     })) as MulticallResult[];
 
     return tokenIds.map((tokenId, index) => {
-      const ownerResult = detailResults[index * 3];
-      const lockedResult = detailResults[index * 3 + 1];
-      const votingPowerResult = detailResults[index * 3 + 2];
+      const ownerResult = detailResults[index * 4];
+      const lockedResult = detailResults[index * 4 + 1];
+      const balanceOfNFTResult = detailResults[index * 4 + 2];
+      const votingPowerOfNFTResult = detailResults[index * 4 + 3];
       const currentOwner =
         ownerResult?.status === "success" &&
         typeof ownerResult.result === "string"
@@ -188,11 +213,22 @@ const getWalletVeNftsForContract = async (
         locked && typeof locked === "object" && "end" in locked
           ? BigInt(locked.end)
           : null;
-      const votingPower =
-        votingPowerResult?.status === "success" &&
-        typeof votingPowerResult.result === "bigint"
-          ? votingPowerResult.result
+      const isPermanent =
+        locked && typeof locked === "object" && "isPermanent" in locked
+          ? Boolean(locked.isPermanent)
+          : false;
+      // Prefer votingPowerOfNFT (handles permanent locks correctly); fall back to balanceOfNFT
+      const votingPowerOfNFT =
+        votingPowerOfNFTResult?.status === "success" &&
+        typeof votingPowerOfNFTResult.result === "bigint"
+          ? votingPowerOfNFTResult.result
           : null;
+      const balanceOfNFT =
+        balanceOfNFTResult?.status === "success" &&
+        typeof balanceOfNFTResult.result === "bigint"
+          ? balanceOfNFTResult.result
+          : null;
+      const votingPower = votingPowerOfNFT ?? balanceOfNFT;
 
       return {
         escrow,
@@ -205,6 +241,7 @@ const getWalletVeNftsForContract = async (
         votingPowerFormatted:
           votingPower !== null ? formatUnits(votingPower, 18) : null,
         unlockTime,
+        isPermanent,
       };
     }).filter((lock): lock is VeNftLock => lock !== null);
   } catch {
@@ -349,4 +386,41 @@ const getTokenIdsFromTransferLogs = async (
   }
 
   return Array.from(tokenIds, (tokenId) => BigInt(tokenId));
+};
+
+export const getEscrowTotalVotingPower = async (
+  client: PublicClient,
+  options: WalletVeNftOptions = {}
+): Promise<Record<string, bigint | null>> => {
+  const contracts = getMezoContracts(options.chainId);
+  const escrows = [
+    { address: options.veBTCAddress ?? contracts.veBTC },
+    {
+      address:
+        options.veMEZOAddress !== undefined
+          ? options.veMEZOAddress
+          : contracts.veMEZO,
+    },
+  ].filter(
+    (e): e is { address: `0x${string}` } =>
+      Boolean(e.address) && e.address !== "0x0"
+  );
+
+  if (escrows.length === 0) return {};
+
+  const results = await client.multicall({
+    allowFailure: true,
+    contracts: escrows.map((e) => ({
+      address: e.address,
+      abi: VeNftAbi,
+      functionName: "totalVotingPower" as const,
+    })),
+  });
+
+  return Object.fromEntries(
+    escrows.map((e, i) => [
+      e.address.toLowerCase(),
+      results[i].status === "success" ? (results[i].result as bigint) : null,
+    ])
+  );
 };

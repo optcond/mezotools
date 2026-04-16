@@ -1,4 +1,4 @@
-import { formatUnits, PublicClient } from "viem";
+import { formatUnits, getAddress, PublicClient } from "viem";
 import { BribeVotingRewardAbi, VoterAbi, VotingEscrowAbi } from "../abi/Gauges";
 import { AppContracts } from "../types";
 import { GaugeIncentive, GaugesFetcher } from "./gaugesFetcher";
@@ -18,6 +18,8 @@ export interface VeLockSummary {
   baseVotingPower: bigint;
   hasVoted: boolean;
   lastVotedAt: bigint;
+  /** True when lastVotedAt >= current epoch start — vote is locked in, cannot change. */
+  votedInCurrentEpoch: boolean;
 }
 
 export interface GaugeVoteOpportunity extends GaugeIncentive {
@@ -111,6 +113,19 @@ export class VeVoteFetcher {
   async getLocks(owner: `0x${string}`): Promise<VeLockSummary[]> {
     const block = await this.client.getBlock();
     const now = block.timestamp;
+
+    // Read current epoch start once — used to determine votedInCurrentEpoch per lock.
+    // Fall back to standard 1-week epoch math if the contract call fails.
+    const EPOCH_DURATION = 604800n; // 7 days in seconds
+    const currentEpochStart = await this.client
+      .readContract({
+        address: this.voterAddress,
+        abi: VoterAbi,
+        functionName: "epochStart",
+        args: [now],
+      })
+      .then((r) => r as bigint)
+      .catch(() => (now / EPOCH_DURATION) * EPOCH_DURATION);
 
     const balance = (await this.client.readContract({
       address: this.veAddress,
@@ -244,22 +259,27 @@ export class VeVoteFetcher {
           ? votingPowerOfNftResult.result
           : 0n;
       const directVotingPower =
-        powerResult?.status === "success" && typeof powerResult.result === "bigint"
+        powerResult?.status === "success" &&
+        typeof powerResult.result === "bigint"
           ? powerResult.result
           : 0n;
       const votingPowerAt =
-        powerAtResult?.status === "success" && typeof powerAtResult.result === "bigint"
+        powerAtResult?.status === "success" &&
+        typeof powerAtResult.result === "bigint"
           ? powerAtResult.result
           : 0n;
       const delegatedVotingPower =
-        pastVotesResult?.status === "success" && typeof pastVotesResult.result === "bigint"
+        pastVotesResult?.status === "success" &&
+        typeof pastVotesResult.result === "bigint"
           ? pastVotesResult.result
           : 0n;
       let votingPower = directVotingPowerOfNft;
       if (directVotingPower > votingPower) votingPower = directVotingPower;
       if (votingPowerAt > votingPower) votingPower = votingPowerAt;
-      if (delegatedVotingPower > votingPower) votingPower = delegatedVotingPower;
-      const lockedAmount = lockTuple.amount >= 0n ? lockTuple.amount : -lockTuple.amount;
+      if (delegatedVotingPower > votingPower)
+        votingPower = delegatedVotingPower;
+      const lockedAmount =
+        lockTuple.amount >= 0n ? lockTuple.amount : -lockTuple.amount;
       let baseVotingPower = lockedAmount;
 
       // Fallback approximation when contract voting power reads are unavailable/zero.
@@ -267,14 +287,16 @@ export class VeVoteFetcher {
         if (lockTuple.isPermanent) {
           votingPower = lockedAmount;
         } else if (lockTuple.end > now && APPROX_MAX_LOCK_SECONDS > 0n) {
-          votingPower = (lockedAmount * (lockTuple.end - now)) / APPROX_MAX_LOCK_SECONDS;
+          votingPower =
+            (lockedAmount * (lockTuple.end - now)) / APPROX_MAX_LOCK_SECONDS;
         }
       }
       if (baseVotingPower === 0n) {
         baseVotingPower = votingPower;
       }
       const hasVoted =
-        votedResult?.status === "success" && typeof votedResult.result === "boolean"
+        votedResult?.status === "success" &&
+        typeof votedResult.result === "boolean"
           ? votedResult.result
           : false;
       const lastVotedAt =
@@ -282,6 +304,7 @@ export class VeVoteFetcher {
         typeof lastVotedResult.result === "bigint"
           ? lastVotedResult.result
           : 0n;
+      const votedInCurrentEpoch = lastVotedAt >= currentEpochStart;
 
       locks.push({
         tokenId: tokenIds[index],
@@ -292,6 +315,7 @@ export class VeVoteFetcher {
         baseVotingPower,
         hasVoted,
         lastVotedAt,
+        votedInCurrentEpoch,
       });
     }
 
@@ -301,12 +325,51 @@ export class VeVoteFetcher {
     });
   }
 
+  async getMaxVotingNum(): Promise<bigint> {
+    return (await this.client.readContract({
+      address: this.voterAddress,
+      abi: VoterAbi,
+      functionName: "maxVotingNum",
+    })) as bigint;
+  }
+
+  async simulateVote(
+    tokenId: bigint,
+    votesByPool: Record<string, bigint>,
+    account: `0x${string}`,
+  ) {
+    const entries = Object.entries(votesByPool).filter(([, w]) => w > 0n);
+    if (!entries.length) throw new Error("No pools with non-zero weight.");
+    const pools = entries.map(([pool]) => getAddress(pool));
+    const weights = entries.map(([, w]) => w);
+    return this.client.simulateContract({
+      address: this.voterAddress,
+      abi: VoterAbi,
+      functionName: "vote",
+      args: [tokenId, pools, weights],
+      account,
+    });
+  }
+
+  async simulateReset(tokenId: bigint, account: `0x${string}`) {
+    return this.client.simulateContract({
+      address: this.voterAddress,
+      abi: VoterAbi,
+      functionName: "reset",
+      args: [tokenId],
+      account,
+    });
+  }
+
   async getGaugeVoteOpportunities(
     tokenId: bigint,
     incentives?: GaugeIncentive[],
   ): Promise<GaugeVoteOpportunity[]> {
     const gaugeList =
-      incentives ?? (await this.gaugesFetcher.fetchGaugeIncentives({ probeAdjacentEpochs: true }));
+      incentives ??
+      (await this.gaugesFetcher.fetchGaugeIncentives({
+        probeAdjacentEpochs: true,
+      }));
     if (gaugeList.length === 0) return [];
 
     const voteCalls = gaugeList.map((gauge) => ({
@@ -323,7 +386,8 @@ export class VeVoteFetcher {
     return gaugeList.map((gauge, index) => {
       const voteResult = voteResults[index];
       const currentVote =
-        voteResult?.status === "success" && typeof voteResult.result === "bigint"
+        voteResult?.status === "success" &&
+        typeof voteResult.result === "bigint"
           ? voteResult.result
           : 0n;
       const currentRewardSignal = [...gauge.rewards, ...gauge.fees].reduce(
@@ -331,9 +395,11 @@ export class VeVoteFetcher {
         0n,
       );
       const rewardSignal = currentRewardSignal;
-      const rewardSignalSource = rewardSignal > 0n ? ("current" as const) : ("none" as const);
+      const rewardSignalSource =
+        rewardSignal > 0n ? ("current" as const) : ("none" as const);
       const denominator = gauge.votes > 0n ? gauge.votes : 1n;
-      const score = rewardSignal === 0n ? 0n : (rewardSignal * SCORE_SCALE) / denominator;
+      const score =
+        rewardSignal === 0n ? 0n : (rewardSignal * SCORE_SCALE) / denominator;
 
       return {
         ...gauge,
@@ -362,7 +428,8 @@ export class VeVoteFetcher {
     }
 
     const minProjectedReward = Math.max(0, options.minProjectedReward ?? 0);
-    const activationWeight = options.activationWeight ?? DEFAULT_ACTIVATION_WEIGHT;
+    const activationWeight =
+      options.activationWeight ?? DEFAULT_ACTIVATION_WEIGHT;
     const allowZeroVoteActivation = options.allowZeroVoteActivation ?? true;
     const candidates = this.buildVoteCandidates(
       opportunities,
@@ -372,7 +439,10 @@ export class VeVoteFetcher {
       return [];
     }
 
-    const searchWidth = Math.max(maxPools, Math.min(candidates.length, maxPools * 3));
+    const searchWidth = Math.max(
+      maxPools,
+      Math.min(candidates.length, maxPools * 3),
+    );
     const shortlisted = candidates.slice(0, searchWidth);
     const continuous =
       options.allocationMode === "averageYield"
@@ -425,7 +495,9 @@ export class VeVoteFetcher {
         };
       })
       .filter((row) => row.weight > 0n)
-      .sort((a, b) => (a.weight === b.weight ? 0 : a.weight > b.weight ? -1 : 1));
+      .sort((a, b) =>
+        a.weight === b.weight ? 0 : a.weight > b.weight ? -1 : 1,
+      );
   }
 
   previewContinuousAllocation(
@@ -451,7 +523,10 @@ export class VeVoteFetcher {
     if (candidates.length === 0) return [];
 
     const maxPools = Math.max(1, options.maxPools ?? DEFAULT_MAX_POOLS);
-    const searchWidth = Math.max(maxPools, Math.min(candidates.length, maxPools * 3));
+    const searchWidth = Math.max(
+      maxPools,
+      Math.min(candidates.length, maxPools * 3),
+    );
     const shortlisted = candidates.slice(0, searchWidth);
     const minProjectedReward = Math.max(0, options.minProjectedReward ?? 0);
     const continuous =
@@ -542,7 +617,9 @@ export class VeVoteFetcher {
     rewardSignalByPool?: Record<string, number>,
   ): VoteCandidate[] {
     return opportunities
-      .filter((item) => item.gauge !== "0x0000000000000000000000000000000000000000")
+      .filter(
+        (item) => item.gauge !== "0x0000000000000000000000000000000000000000",
+      )
       .map((item) => {
         const reward =
           rewardSignalByPool?.[item.pool.toLowerCase()] ??
@@ -592,19 +669,30 @@ export class VeVoteFetcher {
       return [];
     }
 
-    const zeroVote = candidates.filter((candidate) => candidate.votes <= EPSILON);
-    const positiveVote = candidates.filter((candidate) => candidate.votes > EPSILON);
+    const zeroVote = candidates.filter(
+      (candidate) => candidate.votes <= EPSILON,
+    );
+    const positiveVote = candidates.filter(
+      (candidate) => candidate.votes > EPSILON,
+    );
     const zeroAllocations = new Map<string, number>();
     let consumed = 0;
 
-    if (allowZeroVoteActivation && zeroVote.length > 0 && activationWeightHuman > 0) {
+    if (
+      allowZeroVoteActivation &&
+      zeroVote.length > 0 &&
+      activationWeightHuman > 0
+    ) {
       const eligibleZero = zeroVote
         .filter((candidate) => candidate.reward >= minProjectedReward)
         .sort((a, b) => b.reward - a.reward);
 
       for (const candidate of eligibleZero) {
         if (consumed + activationWeightHuman > totalVotesHuman + EPSILON) break;
-        zeroAllocations.set(candidate.item.pool.toLowerCase(), activationWeightHuman);
+        zeroAllocations.set(
+          candidate.item.pool.toLowerCase(),
+          activationWeightHuman,
+        );
         consumed += activationWeightHuman;
       }
     }
@@ -648,7 +736,8 @@ export class VeVoteFetcher {
       if (rejectedPools.size > 0 && rejectedPools.size < candidates.length) {
         return this.solveContinuousVoteAllocation({
           candidates: candidates.filter(
-            (candidate) => !rejectedPools.has(candidate.item.pool.toLowerCase()),
+            (candidate) =>
+              !rejectedPools.has(candidate.item.pool.toLowerCase()),
           ),
           totalVotesHuman,
           minProjectedReward,
@@ -682,7 +771,9 @@ export class VeVoteFetcher {
     const allocationAtYield = (yieldPerVote: number) =>
       viable.reduce((acc, candidate) => {
         if (yieldPerVote <= 0) return acc;
-        return acc + Math.max(0, candidate.reward / yieldPerVote - candidate.votes);
+        return (
+          acc + Math.max(0, candidate.reward / yieldPerVote - candidate.votes)
+        );
       }, 0);
 
     let low = 0;
@@ -695,7 +786,10 @@ export class VeVoteFetcher {
       EPSILON,
     );
 
-    while (allocationAtYield(high) > totalVotesHuman && high < Number.MAX_SAFE_INTEGER) {
+    while (
+      allocationAtYield(high) > totalVotesHuman &&
+      high < Number.MAX_SAFE_INTEGER
+    ) {
       high *= 2;
     }
 
@@ -721,7 +815,10 @@ export class VeVoteFetcher {
         candidate.reward / clearingYield - candidate.votes,
       ),
     }));
-    const allocated = allocations.reduce((acc, row) => acc + row.allocationHuman, 0);
+    const allocated = allocations.reduce(
+      (acc, row) => acc + row.allocationHuman,
+      0,
+    );
     if (allocated <= EPSILON) return [];
     const scale = totalVotesHuman / allocated;
     const allocationByPool = new Map(
@@ -804,7 +901,8 @@ export class VeVoteFetcher {
     for (const candidate of viable) {
       const allocation = Math.max(
         0,
-        Math.sqrt((candidate.reward * candidate.votes) / high) - candidate.votes,
+        Math.sqrt((candidate.reward * candidate.votes) / high) -
+          candidate.votes,
       );
       if (allocation > EPSILON) {
         allocations.set(candidate.item.pool.toLowerCase(), allocation);
@@ -921,7 +1019,10 @@ export class VeVoteFetcher {
     incentives?: GaugeIncentive[],
   ): Promise<ClaimableRewardsSummary> {
     const gaugeList =
-      incentives ?? (await this.gaugesFetcher.fetchGaugeIncentives({ probeAdjacentEpochs: true }));
+      incentives ??
+      (await this.gaugesFetcher.fetchGaugeIncentives({
+        probeAdjacentEpochs: true,
+      }));
 
     const entries = gaugeList.flatMap((gauge) =>
       gauge.bribe !== "0x0000000000000000000000000000000000000000"
@@ -985,7 +1086,10 @@ export class VeVoteFetcher {
     incentives?: GaugeIncentive[],
   ): Promise<ClaimableRewardsSummary> {
     const gaugeList =
-      incentives ?? (await this.gaugesFetcher.fetchGaugeIncentives({ probeAdjacentEpochs: true }));
+      incentives ??
+      (await this.gaugesFetcher.fetchGaugeIncentives({
+        probeAdjacentEpochs: true,
+      }));
 
     const entries = gaugeList.flatMap((gauge) =>
       gauge.fee !== "0x0000000000000000000000000000000000000000"

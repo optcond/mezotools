@@ -506,12 +506,12 @@ export const PriceFeedHistory = () => {
             <h2 className="text-lg font-semibold">{activeConfig.heading}</h2>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <TabsList className="flex w-full flex-wrap gap-2 bg-transparent p-0 sm:w-auto sm:flex-nowrap sm:bg-muted/10 sm:p-1">
+            <TabsList className="grid grid-cols-2 gap-1.5 w-full h-auto bg-transparent p-0 sm:flex sm:h-10 sm:w-auto sm:bg-muted/10 sm:p-1">
               {PRICE_FEED_TABS.map((tab) => (
                 <TabsTrigger
                   key={tab.value}
                   value={tab.value}
-                  className="flex-1 min-w-[140px] whitespace-nowrap px-3 py-2 text-xs sm:flex-none sm:text-sm"
+                  className="border border-border/50 rounded-sm whitespace-nowrap px-3 py-2 text-xs sm:border-0 sm:flex-none sm:text-sm"
                 >
                   {tab.label}
                 </TabsTrigger>

@@ -90,7 +90,7 @@ export const AllTrovesPreview = ({
                 </TableHeader>
                 <TableBody>
                   {riskiestTroves.map((trove) => (
-                    <TableRow key={trove.id}>
+                    <TableRow key={trove.id || trove.owner}>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <a
@@ -137,7 +137,7 @@ export const AllTrovesPreview = ({
 
             <div className="space-y-3 md:hidden">
               {riskiestTroves.map((trove) => (
-                <TableCard key={trove.id}>
+                <TableCard key={trove.id || trove.owner}>
                   <div className="flex items-center justify-between gap-2">
                     <a
                       href={`https://explorer.mezo.org/address/${trove.owner}`}
