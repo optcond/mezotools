@@ -18,6 +18,7 @@ import { BridgedAssetsSheet } from "@/components/BridgedAssetsSheet";
 import { ContractsSheet } from "@/components/ContractsSheet";
 import { DebtCalculatorSheet } from "@/components/DebtCalculatorSheet";
 import { RedemptionSheet } from "@/components/RedemptionSheet";
+import { RevokeSheet } from "@/components/RevokeSheet";
 import { BribesSheet } from "@/components/BribesSheet";
 // import { SwapDialog } from "@/components/SwapDialog";
 import { AllTrovesPreview } from "@/components/AllTrovesPreview";
@@ -210,6 +211,7 @@ const Dashboard = () => {
     sheetParam === "contracts" ||
     sheetParam === "debt-calculator" ||
     sheetParam === "redemption" ||
+    sheetParam === "revoke" ||
     sheetParam === "bribes" ||
     sheetParam === "all-troves" ||
     sheetParam === "latest-activity" ||
@@ -492,6 +494,7 @@ const Dashboard = () => {
         onContractsClick={() => setSheetParam("contracts")}
         onDebtCalculatorClick={() => setSheetParam("debt-calculator")}
         onRedeemClick={() => setSheetParam("redemption")}
+        onRevokeClick={() => setSheetParam("revoke")}
         onBribesClick={() => setSheetParam("bribes")}
         onTrovesClick={() => setSheetParam("all-troves")}
         onCustomizeClick={() => setSheetParam("customize")}
@@ -564,6 +567,10 @@ const Dashboard = () => {
         open={activeSheet === "redemption"}
         onOpenChange={handleSheetOpenChange("redemption")}
         wallet={wallet}
+      />
+      <RevokeSheet
+        open={activeSheet === "revoke"}
+        onOpenChange={handleSheetOpenChange("revoke")}
       />
       <BribesSheet
         open={activeSheet === "bribes"}
@@ -640,6 +647,16 @@ const Dashboard = () => {
               }}
             >
               Redeem
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setIsActionsOpen(false);
+                setSheetParam("revoke");
+              }}
+            >
+              Revoke
             </Button>
             <Button
               type="button"

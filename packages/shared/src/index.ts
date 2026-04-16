@@ -17,8 +17,16 @@ export type {
   KnownTokenBalance,
   KnownTokenBalanceOptions,
 } from "./lib/walletBalances";
-export { getWalletVeNfts, getEscrowTotalVotingPower } from "./lib/veNftFetcher";
-export type { VeNftLock, WalletVeNftOptions } from "./lib/veNftFetcher";
+export {
+  getWalletVeNfts,
+  getWalletVeNftStats,
+  getEscrowTotalVotingPower,
+} from "./lib/veNftFetcher";
+export type {
+  VeNftLock,
+  WalletVeNftOptions,
+  WalletVeNftStats,
+} from "./lib/veNftFetcher";
 export { GaugesFetcher } from "./lib/gaugesFetcher";
 export type { GaugeIncentive, GaugeBribeTokenReward } from "./lib/gaugesFetcher";
 export { createSupabase, SupabaseRepository } from "./lib/supabase";
@@ -27,6 +35,14 @@ export { BridgeChecker } from "./lib/bridgeChecker";
 export type { BridgeTransfer } from "./lib/bridgeChecker";
 export { ContractChecker } from "./lib/contractChecker";
 export type { ContractCreation } from "./lib/contractChecker";
+export { MezoUserApprovalsClient } from "./lib/approvalsFetcher";
+export type {
+  ActiveAllowance,
+  ApprovalCandidate,
+  FetchActiveAllowancesOptions,
+  FetchApprovalsOptions,
+  KnownApprovalToken,
+} from "./lib/approvalsFetcher";
 export type {
   RedemptionResult,
   RedemptionSimulation,

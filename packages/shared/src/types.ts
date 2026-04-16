@@ -1,6 +1,7 @@
 import { Chain } from "viem";
 
 export const MEZO_BC_EXPLORER = "https://explorer.mezo.org";
+export const MEZO_EXPLORER_API_BASE_URL = "https://api.explorer.mezo.org/api/v2";
 export const ZERO_ADDRESS = `0x0000000000000000000000000000000000000000`;
 
 export const MezoChain = {

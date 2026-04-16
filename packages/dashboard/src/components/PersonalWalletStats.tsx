@@ -16,15 +16,14 @@ import {
 } from "@/components/ui/tooltip";
 import {
   getKnownMezoTokenBalances,
-  getWalletVeNfts,
-  getEscrowTotalVotingPower,
+  getWalletVeNftStats,
   MezoChain,
   bigintSharePct,
   formatVotingPower,
   formatUsd as formatUsdShared,
   shortenAddress,
 } from "@mtools/shared";
-import type { KnownTokenBalance, VeNftLock } from "@mtools/shared";
+import type { KnownTokenBalance, WalletVeNftStats } from "@mtools/shared";
 import type { Trove, Liquidation, Redemption } from "@/hooks/useMonitorData";
 import type { WalletControls } from "@/hooks/useWallet";
 import { formatNumber } from "@/lib/formatNumber";
@@ -84,6 +83,29 @@ export const PersonalWalletStats = ({
   const [activeTab, setActiveTab] = useState<MainTab>("balance");
   const [activityTab, setActivityTab] = useState<ActivityTab>("redemptions");
 
+  const veNftStatsQuery = useQuery<WalletVeNftStats>({
+    queryKey: ["wallet-ve-nft-stats", account, activeChainId],
+    enabled: Boolean(account && publicClient),
+    refetchInterval: account ? 30_000 : false,
+    queryFn: () =>
+      getWalletVeNftStats(
+        publicClient as PublicClient,
+        account as `0x${string}`,
+        {
+          chainId: activeChainId,
+        },
+      ),
+    placeholderData: (previousData) => previousData,
+    staleTime: 30_000,
+  });
+
+  const veNftStats = veNftStatsQuery.data ?? {
+    locks: [],
+    totalVotingPowerByAddress: {},
+  };
+  const veNfts = veNftStats.locks;
+  const totalVpByAddress = veNftStats.totalVotingPowerByAddress;
+
   const balancesQuery = useQuery<KnownTokenBalance[]>({
     queryKey: [
       "wallet-known-token-balances",
@@ -102,26 +124,8 @@ export const PersonalWalletStats = ({
           tokenPricesUsd,
         },
       ),
-  });
-
-  const veNftsQuery = useQuery<VeNftLock[]>({
-    queryKey: ["wallet-ve-nfts", account, activeChainId],
-    enabled: Boolean(account && publicClient),
-    refetchInterval: account ? 30_000 : false,
-    queryFn: () =>
-      getWalletVeNfts(publicClient as PublicClient, account as `0x${string}`, {
-        chainId: activeChainId,
-      }),
-  });
-
-  const totalVpQuery = useQuery<Record<string, bigint | null>>({
-    queryKey: ["ve-escrow-total-vp", activeChainId],
-    enabled: Boolean(publicClient),
-    staleTime: 60_000,
-    queryFn: () =>
-      getEscrowTotalVotingPower(publicClient as PublicClient, {
-        chainId: activeChainId,
-      }),
+    placeholderData: (previousData) => previousData,
+    staleTime: 30_000,
   });
 
   const troveRiskMap = useMemo(() => {
@@ -199,7 +203,6 @@ export const PersonalWalletStats = ({
 
   const isDisplayingData = Boolean(account);
   const nonZeroBalances = balancesQuery.data ?? [];
-  const veNfts = veNftsQuery.data ?? [];
   const isBalanceFetching = balancesQuery.isFetching;
 
   const renderSkeleton = () => (
@@ -252,16 +255,15 @@ export const PersonalWalletStats = ({
   );
 
   const renderVeNfts = () => {
-    const totalVpByAddress = totalVpQuery.data ?? {};
     return (
       <div className="rounded-2xl border border-card-border/40 bg-card/30 p-5">
         <div className="mb-4">
           <p className="text-xs uppercase text-muted-foreground">ve NFT</p>
           <p className="text-2xl font-semibold">
-            {veNftsQuery.isFetching ? "Fetching..." : `${veNfts.length} locks`}
+            {veNftStatsQuery.isFetching ? "Fetching..." : `${veNfts.length} locks`}
           </p>
         </div>
-        {veNftsQuery.isFetching && veNfts.length === 0 ? (
+        {veNftStatsQuery.isFetching && veNfts.length === 0 ? (
           <div className="grid gap-3 sm:grid-cols-2">
             {Array.from({ length: 2 }).map((_, index) => (
               <Skeleton key={index} className="h-28 rounded-xl" />

@@ -80,6 +80,7 @@ interface HeaderProps {
   onDebtCalculatorClick?: () => void;
   onSwapClick?: () => void;
   onRedeemClick?: () => void;
+  onRevokeClick?: () => void;
   onBribesClick?: () => void;
   onTrovesClick?: () => void;
   onCustomizeClick?: () => void;
@@ -98,6 +99,7 @@ export const Header = ({
   onDebtCalculatorClick,
   onSwapClick,
   onRedeemClick,
+  onRevokeClick,
   onBribesClick,
   onTrovesClick,
   onCustomizeClick,
@@ -180,6 +182,14 @@ export const Header = ({
               onClick={onRedeemClick}
             >
               Redeem
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="border border-primary bg-transparent text-primary hover:bg-primary/10 hover:text-primary"
+              onClick={onRevokeClick}
+            >
+              Revoke
             </Button>
             <Button
               size="sm"

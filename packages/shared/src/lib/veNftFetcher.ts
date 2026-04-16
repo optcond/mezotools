@@ -104,6 +104,11 @@ export interface VeNftLock {
   isPermanent: boolean;
 }
 
+export interface WalletVeNftStats {
+  locks: VeNftLock[];
+  totalVotingPowerByAddress: Record<string, bigint | null>;
+}
+
 export interface WalletVeNftOptions {
   chainId?: number;
   veBTCAddress?: `0x${string}`;
@@ -117,8 +122,139 @@ export const getWalletVeNfts = async (
   owner: `0x${string}`,
   options: WalletVeNftOptions = {}
 ): Promise<VeNftLock[]> => {
+  const stats = await getWalletVeNftStats(client, owner, options);
+  return stats.locks;
+};
+
+export const getWalletVeNftStats = async (
+  client: PublicClient,
+  owner: `0x${string}`,
+  options: WalletVeNftOptions = {}
+): Promise<WalletVeNftStats> => {
+  const escrowContracts = getEscrowContracts(options);
+  if (escrowContracts.length === 0) {
+    return { locks: [], totalVotingPowerByAddress: {} };
+  }
+
+  const countAndTotalResults = (await client.multicall({
+    allowFailure: true,
+    contracts: escrowContracts.flatMap((contract) => [
+      {
+        address: contract.address,
+        abi: VeNftAbi,
+        functionName: "balanceOf",
+        args: [owner],
+      } as const,
+      {
+        address: contract.address,
+        abi: VeNftAbi,
+        functionName: "totalVotingPower",
+      } as const,
+    ]),
+  })) as MulticallResult[];
+
+  const rows = escrowContracts.map((contract, index) => {
+    const countResult = countAndTotalResults[index * 2];
+    const totalVotingPowerResult = countAndTotalResults[index * 2 + 1];
+
+    return {
+      ...contract,
+      count:
+        countResult?.status === "success" &&
+        typeof countResult.result === "bigint"
+          ? countResult.result
+          : 0n,
+      totalVotingPower:
+        totalVotingPowerResult?.status === "success" &&
+        typeof totalVotingPowerResult.result === "bigint"
+          ? totalVotingPowerResult.result
+          : null,
+    };
+  });
+
+  const totalVotingPowerByAddress = Object.fromEntries(
+    rows.map((row) => [row.address.toLowerCase(), row.totalVotingPower])
+  );
+  const tokenIdsByAddress = await getOwnedTokenIdsByContract(
+    client,
+    owner,
+    rows,
+    options
+  );
+
+  const detailRequests = rows.flatMap((row) =>
+    (tokenIdsByAddress.get(row.address.toLowerCase()) ?? []).flatMap(
+      (tokenId) => [
+        {
+          address: row.address,
+          abi: VeNftAbi,
+          functionName: "ownerOf",
+          args: [tokenId],
+        } as const,
+        {
+          address: row.address,
+          abi: VeNftAbi,
+          functionName: "locked",
+          args: [tokenId],
+        } as const,
+        {
+          address: row.address,
+          abi: VeNftAbi,
+          functionName: "balanceOfNFT",
+          args: [tokenId],
+        } as const,
+        {
+          address: row.address,
+          abi: VeNftAbi,
+          functionName: "votingPowerOfNFT",
+          args: [tokenId],
+        } as const,
+      ]
+    )
+  );
+
+  if (detailRequests.length === 0) {
+    return { locks: [], totalVotingPowerByAddress };
+  }
+
+  const detailResults = (await client.multicall({
+    allowFailure: true,
+    contracts: detailRequests,
+  })) as MulticallResult[];
+
+  const locks: VeNftLock[] = [];
+  let resultIndex = 0;
+  rows.forEach((row) => {
+    const tokenIds = tokenIdsByAddress.get(row.address.toLowerCase()) ?? [];
+    tokenIds.forEach((tokenId) => {
+      const ownerResult = detailResults[resultIndex];
+      const lockedResult = detailResults[resultIndex + 1];
+      const balanceOfNFTResult = detailResults[resultIndex + 2];
+      const votingPowerOfNFTResult = detailResults[resultIndex + 3];
+      resultIndex += 4;
+
+      const lock = toVeNftLock({
+        escrow: row.escrow,
+        contractAddress: row.address,
+        owner,
+        tokenId,
+        ownerResult,
+        lockedResult,
+        balanceOfNFTResult,
+        votingPowerOfNFTResult,
+      });
+      if (lock) {
+        locks.push(lock);
+      }
+    });
+  });
+
+  return { locks, totalVotingPowerByAddress };
+};
+
+const getEscrowContracts = (options: WalletVeNftOptions = {}) => {
   const contracts = getMezoContracts(options.chainId);
-  const escrowContracts = [
+  return [
     {
       escrow: "veBTC" as const,
       address: options.veBTCAddress ?? contracts.veBTC,
@@ -131,214 +267,184 @@ export const getWalletVeNfts = async (
     (item): item is { escrow: "veBTC" | "veMEZO"; address: `0x${string}` } =>
       Boolean(item.address) && item.address !== "0x0"
   );
+};
 
-  const nestedLocks = await Promise.all(
-    escrowContracts.map((contract) =>
-      getWalletVeNftsForContract(
-        client,
-        owner,
-        contract.escrow,
-        contract.address,
-        options
-      )
+const toVeNftLock = ({
+  escrow,
+  contractAddress,
+  owner,
+  tokenId,
+  ownerResult,
+  lockedResult,
+  balanceOfNFTResult,
+  votingPowerOfNFTResult,
+}: {
+  escrow: "veBTC" | "veMEZO";
+  contractAddress: `0x${string}`;
+  owner: `0x${string}`;
+  tokenId: bigint;
+  ownerResult: MulticallResult | undefined;
+  lockedResult: MulticallResult | undefined;
+  balanceOfNFTResult: MulticallResult | undefined;
+  votingPowerOfNFTResult: MulticallResult | undefined;
+}): VeNftLock | null => {
+  const currentOwner =
+    ownerResult?.status === "success" && typeof ownerResult.result === "string"
+      ? (ownerResult.result as `0x${string}`)
+      : null;
+  if (!currentOwner || !isAddressEqual(currentOwner, owner)) {
+    return null;
+  }
+  const locked =
+    lockedResult?.status === "success"
+      ? (lockedResult.result as LockedBalanceResult | null)
+      : null;
+  const lockedAmount =
+    locked && typeof locked === "object" && "amount" in locked
+      ? BigInt(locked.amount)
+      : null;
+  const unlockTime =
+    locked && typeof locked === "object" && "end" in locked
+      ? BigInt(locked.end)
+      : null;
+  const isPermanent =
+    locked && typeof locked === "object" && "isPermanent" in locked
+      ? Boolean(locked.isPermanent)
+      : false;
+  // Prefer votingPowerOfNFT (handles permanent locks correctly); fall back to balanceOfNFT
+  const votingPowerOfNFT =
+    votingPowerOfNFTResult?.status === "success" &&
+    typeof votingPowerOfNFTResult.result === "bigint"
+      ? votingPowerOfNFTResult.result
+      : null;
+  const balanceOfNFT =
+    balanceOfNFTResult?.status === "success" &&
+    typeof balanceOfNFTResult.result === "bigint"
+      ? balanceOfNFTResult.result
+      : null;
+  const votingPower = votingPowerOfNFT ?? balanceOfNFT;
+
+  return {
+    escrow,
+    contractAddress,
+    tokenId,
+    lockedAmount,
+    lockedAmountFormatted:
+      lockedAmount !== null ? formatUnits(lockedAmount, 18) : null,
+    votingPower,
+    votingPowerFormatted:
+      votingPower !== null ? formatUnits(votingPower, 18) : null,
+    unlockTime,
+    isPermanent,
+  };
+};
+
+const getOwnedTokenIdsByContract = async (
+  client: PublicClient,
+  owner: `0x${string}`,
+  rows: Array<{
+    escrow: "veBTC" | "veMEZO";
+    address: `0x${string}`;
+    count: bigint;
+  }>,
+  options: Pick<WalletVeNftOptions, "fromBlock" | "logChunkSize">
+): Promise<Map<string, bigint[]>> => {
+  const result = new Map<string, bigint[]>();
+  const rowsWithLocks = rows.filter((row) => row.count > 0n);
+
+  rows.forEach((row) => result.set(row.address.toLowerCase(), []));
+  if (rowsWithLocks.length === 0) {
+    return result;
+  }
+
+  const ownerListCalls = rowsWithLocks.flatMap((row) =>
+    Array.from({ length: Number(row.count) }, (_, index) => ({
+      address: row.address,
+      abi: VeNftAbi,
+      functionName: "ownerToNFTokenIdList",
+      args: [owner, BigInt(index)],
+    }))
+  );
+
+  const ownerListResults = (await client.multicall({
+    allowFailure: true,
+    contracts: ownerListCalls,
+  })) as MulticallResult[];
+
+  let cursor = 0;
+  const fallbackRows: typeof rowsWithLocks = [];
+  rowsWithLocks.forEach((row) => {
+    const count = Number(row.count);
+    const tokenIds = tokenIdsFromResults(
+      ownerListResults.slice(cursor, cursor + count)
+    );
+    cursor += count;
+
+    if (tokenIds.length > 0) {
+      result.set(row.address.toLowerCase(), tokenIds);
+    } else {
+      fallbackRows.push(row);
+    }
+  });
+
+  if (fallbackRows.length === 0) {
+    return result;
+  }
+
+  const enumerableCalls = fallbackRows.flatMap((row) =>
+    Array.from({ length: Number(row.count) }, (_, index) => ({
+      address: row.address,
+      abi: VeNftAbi,
+      functionName: "tokenOfOwnerByIndex",
+      args: [owner, BigInt(index)],
+    }))
+  );
+
+  const enumerableResults = (await client.multicall({
+    allowFailure: true,
+    contracts: enumerableCalls,
+  })) as MulticallResult[];
+
+  cursor = 0;
+  const logFallbackRows: typeof fallbackRows = [];
+  fallbackRows.forEach((row) => {
+    const count = Number(row.count);
+    const tokenIds = tokenIdsFromResults(
+      enumerableResults.slice(cursor, cursor + count)
+    );
+    cursor += count;
+
+    if (tokenIds.length > 0) {
+      result.set(row.address.toLowerCase(), tokenIds);
+    } else {
+      logFallbackRows.push(row);
+    }
+  });
+
+  if (logFallbackRows.length === 0) {
+    return result;
+  }
+
+  const logTokenIds = await Promise.all(
+    logFallbackRows.map((row) =>
+      getTokenIdsFromTransferLogs(client, owner, row.address, options)
     )
   );
+  logFallbackRows.forEach((row, index) => {
+    result.set(row.address.toLowerCase(), logTokenIds[index]);
+  });
 
-  return nestedLocks.flat();
+  return result;
 };
 
-const getWalletVeNftsForContract = async (
-  client: PublicClient,
-  owner: `0x${string}`,
-  escrow: "veBTC" | "veMEZO",
-  contractAddress: `0x${string}`,
-  options: Pick<WalletVeNftOptions, "fromBlock" | "logChunkSize"> = {}
-): Promise<VeNftLock[]> => {
-  try {
-    const tokenIds = await getOwnedTokenIds(client, owner, contractAddress, options);
-
-    // 4 calls per token: ownerOf, locked, balanceOfNFT, votingPowerOfNFT
-    const detailResults = (await client.multicall({
-      allowFailure: true,
-      contracts: tokenIds.flatMap((tokenId) => [
-        {
-          address: contractAddress,
-          abi: VeNftAbi,
-          functionName: "ownerOf",
-          args: [tokenId],
-        } as const,
-        {
-          address: contractAddress,
-          abi: VeNftAbi,
-          functionName: "locked",
-          args: [tokenId],
-        } as const,
-        {
-          address: contractAddress,
-          abi: VeNftAbi,
-          functionName: "balanceOfNFT",
-          args: [tokenId],
-        } as const,
-        {
-          address: contractAddress,
-          abi: VeNftAbi,
-          functionName: "votingPowerOfNFT",
-          args: [tokenId],
-        } as const,
-      ]),
-    })) as MulticallResult[];
-
-    return tokenIds.map((tokenId, index) => {
-      const ownerResult = detailResults[index * 4];
-      const lockedResult = detailResults[index * 4 + 1];
-      const balanceOfNFTResult = detailResults[index * 4 + 2];
-      const votingPowerOfNFTResult = detailResults[index * 4 + 3];
-      const currentOwner =
-        ownerResult?.status === "success" &&
-        typeof ownerResult.result === "string"
-          ? (ownerResult.result as `0x${string}`)
-          : null;
-      if (!currentOwner || !isAddressEqual(currentOwner, owner)) {
-        return null;
-      }
-      const locked =
-        lockedResult?.status === "success"
-          ? (lockedResult.result as LockedBalanceResult | null)
-          : null;
-      const lockedAmount =
-        locked && typeof locked === "object" && "amount" in locked
-          ? BigInt(locked.amount)
-          : null;
-      const unlockTime =
-        locked && typeof locked === "object" && "end" in locked
-          ? BigInt(locked.end)
-          : null;
-      const isPermanent =
-        locked && typeof locked === "object" && "isPermanent" in locked
-          ? Boolean(locked.isPermanent)
-          : false;
-      // Prefer votingPowerOfNFT (handles permanent locks correctly); fall back to balanceOfNFT
-      const votingPowerOfNFT =
-        votingPowerOfNFTResult?.status === "success" &&
-        typeof votingPowerOfNFTResult.result === "bigint"
-          ? votingPowerOfNFTResult.result
-          : null;
-      const balanceOfNFT =
-        balanceOfNFTResult?.status === "success" &&
-        typeof balanceOfNFTResult.result === "bigint"
-          ? balanceOfNFTResult.result
-          : null;
-      const votingPower = votingPowerOfNFT ?? balanceOfNFT;
-
-      return {
-        escrow,
-        contractAddress,
-        tokenId,
-        lockedAmount,
-        lockedAmountFormatted:
-          lockedAmount !== null ? formatUnits(lockedAmount, 18) : null,
-        votingPower,
-        votingPowerFormatted:
-          votingPower !== null ? formatUnits(votingPower, 18) : null,
-        unlockTime,
-        isPermanent,
-      };
-    }).filter((lock): lock is VeNftLock => lock !== null);
-  } catch {
-    return [];
-  }
-};
-
-const getOwnedTokenIds = async (
-  client: PublicClient,
-  owner: `0x${string}`,
-  contractAddress: `0x${string}`,
-  options: Pick<WalletVeNftOptions, "fromBlock" | "logChunkSize">
-): Promise<bigint[]> => {
-  const count = await getNftCount(client, owner, contractAddress);
-  if (count === 0n) {
-    return [];
-  }
-
-  const enumerableTokenIds = await tryGetEnumerableTokenIds(
-    client,
-    owner,
-    contractAddress,
-    count
-  );
-  if (enumerableTokenIds.length > 0) {
-    return enumerableTokenIds;
-  }
-
-  return getTokenIdsFromTransferLogs(client, owner, contractAddress, options);
-};
-
-const tryGetEnumerableTokenIds = async (
-  client: PublicClient,
-  owner: `0x${string}`,
-  contractAddress: `0x${string}`,
-  count: bigint
-): Promise<bigint[]> => {
-  try {
-    const tokenIdResults = (await client.multicall({
-      allowFailure: true,
-      contracts: Array.from({ length: Number(count) }, (_, index) => ({
-        address: contractAddress,
-        abi: VeNftAbi,
-        functionName: "ownerToNFTokenIdList",
-        args: [owner, BigInt(index)],
-      })),
-    })) as MulticallResult[];
-
-    const ownerListTokenIds = tokenIdResults
-      .map((result) =>
-        result.status === "success" && typeof result.result === "bigint"
-          ? result.result
-          : null
-      )
-      .filter((tokenId): tokenId is bigint => tokenId !== null);
-    if (ownerListTokenIds.length > 0) {
-      return ownerListTokenIds;
-    }
-
-    const enumerableResults = (await client.multicall({
-      allowFailure: true,
-      contracts: Array.from({ length: Number(count) }, (_, index) => ({
-        address: contractAddress,
-        abi: VeNftAbi,
-        functionName: "tokenOfOwnerByIndex",
-        args: [owner, BigInt(index)],
-      })),
-    })) as MulticallResult[];
-
-    return enumerableResults
-      .map((result) =>
-        result.status === "success" && typeof result.result === "bigint"
-          ? result.result
-          : null
-      )
-      .filter((tokenId): tokenId is bigint => tokenId !== null);
-  } catch {
-    return [];
-  }
-};
-
-const getNftCount = async (
-  client: PublicClient,
-  owner: `0x${string}`,
-  contractAddress: `0x${string}`
-): Promise<bigint> => {
-  try {
-    return (await client.readContract({
-      address: contractAddress,
-      abi: VeNftAbi,
-      functionName: "balanceOf",
-      args: [owner],
-    })) as bigint;
-  } catch {
-    return 0n;
-  }
-};
+const tokenIdsFromResults = (results: MulticallResult[]) =>
+  results
+    .map((result) =>
+      result.status === "success" && typeof result.result === "bigint"
+        ? result.result
+        : null
+    )
+    .filter((tokenId): tokenId is bigint => tokenId !== null);
 
 const getTokenIdsFromTransferLogs = async (
   client: PublicClient,

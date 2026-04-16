@@ -1,5 +1,20 @@
 import { erc20Abi, formatUnits, PublicClient } from "viem";
-import { getMezoContracts, MezoTokenPriceSymbols, MezoTokens } from "../types";
+import {
+  getMezoChain,
+  getMezoContracts,
+  MezoTokenPriceSymbols,
+  MezoTokens,
+} from "../types";
+
+const Multicall3Abi = [
+  {
+    inputs: [{ internalType: "address", name: "addr", type: "address" }],
+    name: "getEthBalance",
+    outputs: [{ internalType: "uint256", name: "balance", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+] as const;
 
 export interface KnownTokenBalance {
   symbol: string;
@@ -30,6 +45,9 @@ export const getKnownMezoTokenBalances = async (
   const excludedSymbols = new Set(options.excludeSymbols ?? ["veBTC", "veMEZO"]);
 
   const nativeToken = tokens.BTC;
+  const multicallAddress =
+    client.chain?.contracts?.multicall3?.address ??
+    getMezoChain(options.chainId).contracts?.multicall3?.address;
   const erc20Tokens = Object.entries(tokens)
     .filter(
       ([symbol, token]) =>
@@ -41,20 +59,41 @@ export const getKnownMezoTokenBalances = async (
       decimals: token.decimals,
     }));
 
-  const [nativeRaw, erc20Results] = await Promise.all([
-    nativeToken ? client.getBalance({ address: owner }) : Promise.resolve(0n),
-    erc20Tokens.length > 0
-      ? client.multicall({
-          allowFailure: true,
-          contracts: erc20Tokens.map((token) => ({
-            address: token.address,
-            abi: erc20Abi,
-            functionName: "balanceOf",
+  const nativeBalanceCalls =
+    nativeToken && multicallAddress
+      ? [
+          {
+            address: multicallAddress,
+            abi: Multicall3Abi,
+            functionName: "getEthBalance",
             args: [owner],
-          })),
+          } as const,
+        ]
+      : [];
+
+  const balanceResults =
+    nativeBalanceCalls.length > 0 || erc20Tokens.length > 0
+      ? await client.multicall({
+          allowFailure: true,
+          contracts: [
+            ...nativeBalanceCalls,
+            ...erc20Tokens.map((token) => ({
+              address: token.address,
+              abi: erc20Abi,
+              functionName: "balanceOf" as const,
+              args: [owner],
+            })),
+          ],
         })
-      : Promise.resolve([]),
-  ]);
+      : [];
+  const nativeResult = nativeBalanceCalls.length > 0 ? balanceResults[0] : null;
+  const nativeRaw =
+    nativeResult?.status === "success" && typeof nativeResult.result === "bigint"
+      ? nativeResult.result
+      : nativeToken
+        ? await client.getBalance({ address: owner })
+        : 0n;
+  const erc20Results = balanceResults.slice(nativeBalanceCalls.length);
 
   const balances: KnownTokenBalance[] = [];
   if (nativeToken) {
