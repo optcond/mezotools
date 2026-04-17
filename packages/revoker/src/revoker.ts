@@ -39,6 +39,21 @@ interface RunStats {
   upserted: number;
 }
 
+export interface RevokerStatus {
+  currentBlock: number;
+  safeBlock: number;
+  historyStartBlock: number;
+  checkpoint: IndexerCheckpoint | null;
+  approvalStateCount: number | null;
+  backfillComplete: boolean;
+}
+
+export interface ForwardFillStats extends RunStats {
+  fromBlock: number;
+  toBlock: number;
+  flushedStates: number;
+}
+
 const emptyStats = (): RunStats => ({
   ranges: 0,
   approvalLogs: 0,
@@ -147,6 +162,132 @@ export class Revoker {
     }
 
     return this.runIncremental(checkpoint, safeBlock);
+  }
+
+  async getStatus(): Promise<RevokerStatus> {
+    const currentBlock = await this.deps.getCurrentBlock();
+    const safeBlock = Math.max(0, currentBlock - this.config.confirmationBlocks);
+    const historyStartBlock = this.getHistoryStartBlock(currentBlock);
+    const checkpoint = this.deps.repository
+      ? await this.deps.repository.getCheckpoint(this.config.indexerName)
+      : null;
+    const approvalStateCount = this.deps.repository
+      ? await this.deps.repository.getApprovalStateCount()
+      : null;
+
+    return {
+      currentBlock,
+      safeBlock,
+      historyStartBlock,
+      checkpoint,
+      approvalStateCount,
+      backfillComplete: Boolean(
+        checkpoint && checkpoint.lastIndexedBlock <= historyStartBlock,
+      ),
+    };
+  }
+
+  async runForwardFillUntilDone(): Promise<ForwardFillStats> {
+    if (!this.deps.repository) {
+      throw new Error("Revoker repository is not configured");
+    }
+
+    const currentBlock = await this.deps.getCurrentBlock();
+    const safeBlock = Math.max(0, currentBlock - this.config.confirmationBlocks);
+    const historyStartBlock = this.getHistoryStartBlock(currentBlock);
+    const fillCheckpointName = `${this.config.indexerName}:forward-fill`;
+    let checkpoint = await this.deps.repository.getCheckpoint(fillCheckpointName);
+
+    if (!checkpoint) {
+      checkpoint = {
+        indexerName: fillCheckpointName,
+        lastIndexedBlock: historyStartBlock - 1,
+        lastSafeBlock: safeBlock,
+      };
+      await this.deps.repository.upsertCheckpoint(checkpoint);
+      console.log(
+        `Initialized forward-fill checkpoint ${fillCheckpointName} at ${checkpoint.lastIndexedBlock}, target safe block ${safeBlock}`,
+      );
+    }
+
+    const targetBlock = checkpoint.lastSafeBlock;
+    const stats: ForwardFillStats = {
+      ...emptyStats(),
+      fromBlock: historyStartBlock,
+      toBlock: targetBlock,
+      flushedStates: 0,
+    };
+    const latestStates = new Map<string, ApprovalState>();
+    let fromBlock = Math.max(historyStartBlock, checkpoint.lastIndexedBlock + 1);
+
+    while (fromBlock <= targetBlock) {
+      const toBlock = Math.min(
+        targetBlock,
+        fromBlock + this.config.blockRangeSize - 1,
+      );
+      const result = await this.fetchLatestApprovalStates(fromBlock, toBlock);
+
+      for (const approval of result.latestStates.values()) {
+        addLatestApprovalState(latestStates, approval);
+      }
+
+      this.addRangeStats(stats, result, 0);
+      this.logRange("Forward-filled", fromBlock, toBlock, result, 0);
+      console.log(
+        `Forward-fill cache states=${latestStates.size}, checkpoint next=${toBlock}`,
+      );
+
+      if (latestStates.size >= this.config.forwardFillFlushSize) {
+        stats.flushedStates += await this.flushForwardFillStates(latestStates);
+      }
+
+      await this.deps.repository.upsertCheckpoint({
+        ...checkpoint,
+        lastIndexedBlock: toBlock,
+      });
+
+      checkpoint = {
+        ...checkpoint,
+        lastIndexedBlock: toBlock,
+      };
+      fromBlock = toBlock + 1;
+    }
+
+    if (latestStates.size > 0) {
+      stats.flushedStates += await this.flushForwardFillStates(latestStates);
+    }
+
+    await this.deps.repository.upsertCheckpoint({
+      indexerName: this.config.indexerName,
+      lastIndexedBlock: historyStartBlock,
+      lastSafeBlock: targetBlock,
+    });
+
+    this.logSummary("Forward-fill summary", stats);
+    console.log(
+      `Forward-fill completed through ${targetBlock}. Main checkpoint last_indexed=${historyStartBlock}, last_safe=${targetBlock}`,
+    );
+
+    return stats;
+  }
+
+  private async flushForwardFillStates(
+    latestStates: Map<string, ApprovalState>,
+  ): Promise<number> {
+    if (!this.deps.repository) {
+      throw new Error("Revoker repository is not configured");
+    }
+
+    const rows = sortedLatestStates(latestStates.values());
+    const upserted = await this.deps.repository.upsertApprovalStates(
+      rows,
+      this.config.upsertBatchSize,
+    );
+    console.log(
+      `Forward-fill flushed ${rows.length} cached states, upserted=${upserted}`,
+    );
+    latestStates.clear();
+    return upserted;
   }
 
   private async runBackfill(

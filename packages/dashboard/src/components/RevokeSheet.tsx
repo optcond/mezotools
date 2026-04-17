@@ -180,6 +180,33 @@ const formatApproval = (approval: RevocableApproval) => {
   }
 };
 
+const TokenContractLink = ({ approval }: { approval: RevocableApproval }) => {
+  if (approval.tokenSymbol) {
+    return (
+      <a
+        href={`${MEZO_BC_EXPLORER}/address/${approval.token}`}
+        target="_blank"
+        rel="noreferrer"
+        className="font-mono text-xs underline-offset-2 hover:underline"
+      >
+        {approval.tokenSymbol}
+      </a>
+    );
+  }
+
+  return (
+    <a
+      href={`${MEZO_BC_EXPLORER}/address/${approval.token}`}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex flex-col gap-0.5 font-mono text-xs underline-offset-2 hover:underline"
+    >
+      <span>Contract</span>
+      <span>{truncateAddress(approval.token)}</span>
+    </a>
+  );
+};
+
 const fetchErc20ApprovalRows = async (
   chainId: number,
   owner: Address,
@@ -675,14 +702,7 @@ export const RevokeSheet = ({ open, onOpenChange }: RevokeSheetProps) => {
                           />
                         </TableCell>
                         <TableCell>
-                          <a
-                            href={`${MEZO_BC_EXPLORER}/address/${approval.token}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="font-mono text-xs underline-offset-2 hover:underline"
-                          >
-                            {approval.tokenSymbol ?? truncateAddress(approval.token)}
-                          </a>
+                          <TokenContractLink approval={approval} />
                         </TableCell>
                         <TableCell>
                           <a
@@ -722,7 +742,7 @@ export const RevokeSheet = ({ open, onOpenChange }: RevokeSheetProps) => {
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <div className="font-semibold text-foreground">
-                          {approval.tokenSymbol ?? truncateAddress(approval.token)}
+                          <TokenContractLink approval={approval} />
                         </div>
                         <a
                           href={`${MEZO_BC_EXPLORER}/address/${approval.spender}`}

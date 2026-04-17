@@ -54,8 +54,41 @@ const formatLockLabel = (lock: VeNftLock) => {
 const findLock = (locks: VeNftLock[], value: string) =>
   locks.find((lock) => lockValue(lock) === value) ?? null;
 
+const getVestingEndLabel = (lock: VeNftLock) => {
+  if (!lock.vestingEnd || lock.vestingEnd <= 0n) return null;
+  return new Date(Number(lock.vestingEnd) * 1000).toLocaleDateString();
+};
+
+const getVestingError = (lock: VeNftLock | null) => {
+  if (!lock || !lock.vestingEnd || lock.vestingEnd <= 0n) {
+    return null;
+  }
+
+  return `${lock.escrow} #${lock.tokenId.toString()} has vesting until ${getVestingEndLabel(
+    lock,
+  )}. This NFT cannot be edited before vesting is removed or completed.`;
+};
+
+const getMaxLockError = (lock: VeNftLock | null) => {
+  if (!lock?.isPermanent) return null;
+  return `${lock.escrow} #${lock.tokenId.toString()} has max lock enabled. Remove max lock first, then retry.`;
+};
+
+const getSourceEditError = (lock: VeNftLock | null) =>
+  getVestingError(lock) ?? getMaxLockError(lock);
+
+const getMergeError = (
+  sourceLock: VeNftLock | null,
+  targetLock: VeNftLock | null,
+) => {
+  if (!sourceLock || !targetLock) return null;
+  return getSourceEditError(sourceLock) ?? getVestingError(targetLock);
+};
+
 const getAmountError = (amountInput: string, selectedLock: VeNftLock | null) => {
   if (!selectedLock) return "Select an NFT first.";
+  const sourceEditError = getSourceEditError(selectedLock);
+  if (sourceEditError) return sourceEditError;
   if (!selectedLock.lockedAmount || selectedLock.lockedAmount <= 0n) {
     return "Selected NFT has no locked amount.";
   }
@@ -119,7 +152,22 @@ export const NftOperationsSheet = ({
   const selectedMergeFrom = findLock(locks, mergeFrom);
   const selectedMergeTo = findLock(locks, mergeTo);
   const selectedSplitLock = findLock(locks, splitToken);
+  const mergeError = getMergeError(selectedMergeFrom, selectedMergeTo);
   const splitError = getAmountError(splitAmount, selectedSplitLock);
+  const activeVestingError =
+    mode === "merge"
+      ? selectedMergeFrom
+        ? getVestingError(selectedMergeFrom) ?? getVestingError(selectedMergeTo)
+        : null
+      : getVestingError(selectedSplitLock);
+  const maxLockSource =
+    !activeVestingError && mode === "merge"
+      ? selectedMergeFrom?.isPermanent
+        ? selectedMergeFrom
+        : null
+      : !activeVestingError && selectedSplitLock?.isPermanent
+        ? selectedSplitLock
+        : null;
   const splitRemainder =
     selectedSplitLock?.lockedAmount && !splitError
       ? selectedSplitLock.lockedAmount - parseUnits(splitAmount, NFT_DECIMALS)
@@ -179,6 +227,11 @@ export const NftOperationsSheet = ({
       setStatus("Select two NFTs from the same escrow.");
       return;
     }
+    if (mergeError) {
+      setStatus(mergeError);
+      toast({ title: "NFT merge blocked", description: mergeError });
+      return;
+    }
     setIsSubmitting(true);
     setStatus("Waiting for wallet signature...");
     try {
@@ -210,7 +263,9 @@ export const NftOperationsSheet = ({
       return;
     }
     if (!selectedSplitLock || splitError) {
-      setStatus(splitError ?? "Select an NFT and enter a valid amount.");
+      const message = splitError ?? "Select an NFT and enter a valid amount.";
+      setStatus(message);
+      toast({ title: "NFT split blocked", description: message });
       return;
     }
     setIsSubmitting(true);
@@ -234,6 +289,38 @@ export const NftOperationsSheet = ({
       const message = error instanceof Error ? error.message : "Split failed.";
       setStatus(message);
       toast({ title: "NFT split failed", description: message });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const submitUnlockPermanent = async (lock: VeNftLock) => {
+    if (!wallet.walletClient?.account || !publicClient) {
+      setStatus("Connect a wallet that can sign transactions.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setStatus("Waiting for wallet signature...");
+    try {
+      const hash = await wallet.walletClient.writeContract({
+        account: wallet.walletClient.account,
+        chain: wallet.walletClient.chain,
+        address: lock.contractAddress,
+        abi: VotingEscrowAbi,
+        functionName: "unlockPermanent",
+        args: [lock.tokenId],
+      });
+      setStatus("Max lock removal submitted. Waiting for confirmation...");
+      await publicClient.waitForTransactionReceipt({ hash });
+      setStatus("Max lock removed.");
+      toast({ title: "Max lock removed" });
+      await refreshLocks();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Max lock removal failed.";
+      setStatus(message);
+      toast({ title: "Max lock removal failed", description: message });
     } finally {
       setIsSubmitting(false);
     }
@@ -301,6 +388,31 @@ export const NftOperationsSheet = ({
                     placeholder="Select target"
                   />
                 </div>
+                {activeVestingError ? (
+                  <VestingNotice message={activeVestingError} />
+                ) : mergeError ? (
+                  <p className="mt-3 text-sm text-destructive">{mergeError}</p>
+                ) : null}
+                {maxLockSource ? (
+                  <div className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
+                    <p className="text-sm text-amber-200">
+                      Max lock must be removed before this NFT can be merged.
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="mt-3 border-amber-500/60 bg-background/70 text-foreground hover:bg-amber-500/20"
+                      disabled={isSubmitting || !wallet.walletClient}
+                      onClick={() => void submitUnlockPermanent(maxLockSource)}
+                    >
+                      {isSubmitting && mode === "merge" ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : null}
+                      Remove max lock
+                    </Button>
+                  </div>
+                ) : null}
                 <Button
                   type="button"
                   className="mt-4 w-full sm:w-auto"
@@ -308,7 +420,8 @@ export const NftOperationsSheet = ({
                     isSubmitting ||
                     !wallet.walletClient ||
                     !selectedMergeFrom ||
-                    !selectedMergeTo
+                    !selectedMergeTo ||
+                    Boolean(mergeError)
                   }
                   onClick={() => void submitMerge()}
                 >
@@ -354,11 +467,34 @@ export const NftOperationsSheet = ({
                       <p className="text-xs text-muted-foreground">
                         Remainder: {formatUnits(splitRemainder, NFT_DECIMALS)}
                       </p>
-                    ) : splitError ? (
+                    ) : splitError && !activeVestingError ? (
                       <p className="text-xs text-destructive">{splitError}</p>
                     ) : null}
                   </div>
                 </div>
+                {activeVestingError ? (
+                  <VestingNotice message={activeVestingError} />
+                ) : null}
+                {maxLockSource ? (
+                  <div className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
+                    <p className="text-sm text-amber-200">
+                      Max lock must be removed before this NFT can be split.
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="mt-3 border-amber-500/60 bg-background/70 text-foreground hover:bg-amber-500/20"
+                      disabled={isSubmitting || !wallet.walletClient}
+                      onClick={() => void submitUnlockPermanent(maxLockSource)}
+                    >
+                      {isSubmitting && mode === "split" ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : null}
+                      Remove max lock
+                    </Button>
+                  </div>
+                ) : null}
                 <Button
                   type="button"
                   className="mt-4 w-full sm:w-auto"
@@ -419,5 +555,11 @@ const NftSelect = ({
         ))}
       </SelectContent>
     </Select>
+  </div>
+);
+
+const VestingNotice = ({ message }: { message: string }) => (
+  <div className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
+    <p className="text-sm text-amber-200">{message}</p>
   </div>
 );

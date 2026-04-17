@@ -17,6 +17,8 @@ export interface RevokerConfig {
   requestTimeoutMs: number;
   confirmationBlocks: number;
   maxRangesPerRun: number;
+  backfillLoopPauseMs: number;
+  forwardFillFlushSize: number;
   upsertBatchSize: number;
   devHistoryBlockLimit: number;
 }
@@ -87,6 +89,14 @@ export function loadConfig(
     requestTimeoutMs: parsePositiveInt(env.REVOKER_REQUEST_TIMEOUT_MS, 20_000),
     confirmationBlocks: parsePositiveInt(env.REVOKER_CONFIRMATION_BLOCKS, 10),
     maxRangesPerRun: parsePositiveInt(env.REVOKER_MAX_RANGES_PER_RUN, 50),
+    backfillLoopPauseMs: parsePositiveInt(
+      env.REVOKER_BACKFILL_LOOP_PAUSE_MS,
+      2_000,
+    ),
+    forwardFillFlushSize: parsePositiveInt(
+      env.REVOKER_FORWARD_FILL_FLUSH_SIZE,
+      5_000,
+    ),
     upsertBatchSize: parsePositiveInt(env.REVOKER_UPSERT_BATCH_SIZE, 500),
     devHistoryBlockLimit: parsePositiveInt(
       env.REVOKER_DEV_HISTORY_BLOCK_LIMIT,

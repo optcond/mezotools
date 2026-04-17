@@ -79,6 +79,13 @@ const VeNftAbi = [
     stateMutability: "view",
     type: "function",
   },
+  {
+    inputs: [{ internalType: "uint256", name: "tokenId", type: "uint256" }],
+    name: "vestingEnd",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
 ] as const;
 
 type MulticallResult = {
@@ -101,6 +108,7 @@ export interface VeNftLock {
   votingPower: bigint | null;
   votingPowerFormatted: string | null;
   unlockTime: bigint | null;
+  vestingEnd: bigint | null;
   isPermanent: boolean;
 }
 
@@ -209,6 +217,12 @@ export const getWalletVeNftStats = async (
           functionName: "votingPowerOfNFT",
           args: [tokenId],
         } as const,
+        {
+          address: row.address,
+          abi: VeNftAbi,
+          functionName: "vestingEnd",
+          args: [tokenId],
+        } as const,
       ]
     )
   );
@@ -231,7 +245,8 @@ export const getWalletVeNftStats = async (
       const lockedResult = detailResults[resultIndex + 1];
       const balanceOfNFTResult = detailResults[resultIndex + 2];
       const votingPowerOfNFTResult = detailResults[resultIndex + 3];
-      resultIndex += 4;
+      const vestingEndResult = detailResults[resultIndex + 4];
+      resultIndex += 5;
 
       const lock = toVeNftLock({
         escrow: row.escrow,
@@ -242,6 +257,7 @@ export const getWalletVeNftStats = async (
         lockedResult,
         balanceOfNFTResult,
         votingPowerOfNFTResult,
+        vestingEndResult,
       });
       if (lock) {
         locks.push(lock);
@@ -278,6 +294,7 @@ const toVeNftLock = ({
   lockedResult,
   balanceOfNFTResult,
   votingPowerOfNFTResult,
+  vestingEndResult,
 }: {
   escrow: "veBTC" | "veMEZO";
   contractAddress: `0x${string}`;
@@ -287,6 +304,7 @@ const toVeNftLock = ({
   lockedResult: MulticallResult | undefined;
   balanceOfNFTResult: MulticallResult | undefined;
   votingPowerOfNFTResult: MulticallResult | undefined;
+  vestingEndResult: MulticallResult | undefined;
 }): VeNftLock | null => {
   const currentOwner =
     ownerResult?.status === "success" && typeof ownerResult.result === "string"
@@ -311,6 +329,11 @@ const toVeNftLock = ({
     locked && typeof locked === "object" && "isPermanent" in locked
       ? Boolean(locked.isPermanent)
       : false;
+  const vestingEnd =
+    vestingEndResult?.status === "success" &&
+    typeof vestingEndResult.result === "bigint"
+      ? vestingEndResult.result
+      : null;
   // Prefer votingPowerOfNFT (handles permanent locks correctly); fall back to balanceOfNFT
   const votingPowerOfNFT =
     votingPowerOfNFTResult?.status === "success" &&
@@ -335,6 +358,7 @@ const toVeNftLock = ({
     votingPowerFormatted:
       votingPower !== null ? formatUnits(votingPower, 18) : null,
     unlockTime,
+    vestingEnd,
     isPermanent,
   };
 };

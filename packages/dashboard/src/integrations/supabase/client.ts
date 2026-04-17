@@ -5,7 +5,7 @@ import type { Database } from "./types";
 let SUPABASE_URL: string;
 let SUPABASE_PUBLISHABLE_KEY: string;
 
-if (import.meta.env.DEV) {
+if (import.meta.env.ENVIRONMENT === "dev") {
   SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL_DEV;
   SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY_DEV;
 } else {
@@ -25,5 +25,5 @@ export const supabase = createClient<Database>(
       persistSession: true,
       autoRefreshToken: true,
     },
-  }
+  },
 );
