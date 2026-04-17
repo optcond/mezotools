@@ -20,8 +20,8 @@ import { DebtCalculatorSheet } from "@/components/DebtCalculatorSheet";
 import { RedemptionSheet } from "@/components/RedemptionSheet";
 import { RevokeSheet } from "@/components/RevokeSheet";
 import { BribesSheet } from "@/components/BribesSheet";
+import { NftOperationsSheet } from "@/components/NftOperationsSheet";
 // import { SwapDialog } from "@/components/SwapDialog";
-import { AllTrovesPreview } from "@/components/AllTrovesPreview";
 import { AllTrovesSheet } from "@/components/AllTrovesSheet";
 import { LiquidationsRedemptionsSheet } from "@/components/LiquidationsRedemptionsSheet";
 import { CustomizeSheet } from "@/components/CustomizeSheet";
@@ -29,6 +29,7 @@ import { useMonitorData } from "@/hooks/useMonitorData";
 import { usePriceFeedHistory } from "@/hooks/usePriceFeedHistory";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { buildRiskAnalysis } from "@/lib/riskAnalysis";
 import {
   Sheet,
   SheetContent,
@@ -91,12 +92,12 @@ const PriceFeedHistoryFallback = () => (
 const RiskAnalysisFallback = () => (
   <div className="glass-card p-6 space-y-4">
     <div className="h-6 w-36 rounded bg-muted/30" />
-    <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-      {Array.from({ length: 4 }).map((_, index) => (
+    <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+      {Array.from({ length: 3 }).map((_, index) => (
         <div key={index} className="h-24 rounded-xl bg-muted/30" />
       ))}
     </div>
-    <div className="h-64 rounded-xl bg-muted/30" />
+    <div className="h-40 rounded-xl bg-muted/30" />
   </div>
 );
 
@@ -123,7 +124,6 @@ const dashboardWidgets = [
   { key: "risk", label: "Risk analysis" },
   { key: "price-feed", label: "Price feed" },
   { key: "latest-activity", label: "Liquidations & Redemptions" },
-  { key: "troves-summary", label: "Highest-Risk Troves" },
 ] as const;
 
 type DashboardWidgetKey = (typeof dashboardWidgets)[number]["key"];
@@ -213,6 +213,7 @@ const Dashboard = () => {
     sheetParam === "redemption" ||
     sheetParam === "revoke" ||
     sheetParam === "bribes" ||
+    sheetParam === "nft-operations" ||
     sheetParam === "all-troves" ||
     sheetParam === "latest-activity" ||
     sheetParam === "customize"
@@ -263,32 +264,7 @@ const Dashboard = () => {
     [systemMetrics.btcPrice, systemMetrics.mezoUsdPrice, musdUsdPrice]
   );
 
-  const riskBuckets = useMemo(() => {
-    const buckets = {
-      critical: { count: 0, collateral: 0 },
-      high: { count: 0, collateral: 0 },
-      elevated: { count: 0, collateral: 0 },
-      safe: { count: 0, collateral: 0 },
-    };
-
-    troves.forEach((trove) => {
-      if (trove.collaterization_ratio < 1.2) {
-        buckets.critical.count++;
-        buckets.critical.collateral += trove.collateral;
-      } else if (trove.collaterization_ratio < 1.6) {
-        buckets.high.count++;
-        buckets.high.collateral += trove.collateral;
-      } else if (trove.collaterization_ratio < 2.0) {
-        buckets.elevated.count++;
-        buckets.elevated.collateral += trove.collateral;
-      } else {
-        buckets.safe.count++;
-        buckets.safe.collateral += trove.collateral;
-      }
-    });
-
-    return buckets;
-  }, [troves]);
+  const riskAnalysis = useMemo(() => buildRiskAnalysis(troves), [troves]);
 
   const chartData = useMemo(
     () =>
@@ -430,6 +406,7 @@ const Dashboard = () => {
           isLoading={isLoading}
           wallet={wallet}
           tokenPricesUsd={walletTokenPricesUsd}
+          onNftOperationsClick={() => setSheetParam("nft-operations")}
         />
       </Suspense>
     ),
@@ -454,10 +431,7 @@ const Dashboard = () => {
     risk: (
       <Suspense fallback={<RiskAnalysisFallback />}>
         <RiskAnalysisSection
-          critical={riskBuckets.critical}
-          high={riskBuckets.high}
-          elevated={riskBuckets.elevated}
-          safe={riskBuckets.safe}
+          analysis={riskAnalysis}
           isLoading={isLoading}
         />
       </Suspense>
@@ -471,12 +445,6 @@ const Dashboard = () => {
           onOpenFullTable={() => setSheetParam("latest-activity")}
         />
       </Suspense>
-    ),
-    "troves-summary": (
-      <AllTrovesPreview
-        troves={troves}
-        onOpenFullTable={() => setSheetParam("all-troves")}
-      />
     ),
   };
 
@@ -496,6 +464,7 @@ const Dashboard = () => {
         onRedeemClick={() => setSheetParam("redemption")}
         onRevokeClick={() => setSheetParam("revoke")}
         onBribesClick={() => setSheetParam("bribes")}
+        onNftClick={() => setSheetParam("nft-operations")}
         onTrovesClick={() => setSheetParam("all-troves")}
         onCustomizeClick={() => setSheetParam("customize")}
         // onSwapClick={() => setIsSwapDialogOpen(true)}
@@ -577,6 +546,11 @@ const Dashboard = () => {
         onOpenChange={handleSheetOpenChange("bribes")}
         btcPrice={systemMetrics.btcPrice}
       />
+      <NftOperationsSheet
+        open={activeSheet === "nft-operations"}
+        onOpenChange={handleSheetOpenChange("nft-operations")}
+        wallet={wallet}
+      />
       <AllTrovesSheet
         open={activeSheet === "all-troves"}
         onOpenChange={handleSheetOpenChange("all-troves")}
@@ -657,6 +631,16 @@ const Dashboard = () => {
               }}
             >
               Revoke
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setIsActionsOpen(false);
+                setSheetParam("nft-operations");
+              }}
+            >
+              NFT
             </Button>
             <Button
               type="button"

@@ -82,6 +82,7 @@ interface HeaderProps {
   onRedeemClick?: () => void;
   onRevokeClick?: () => void;
   onBribesClick?: () => void;
+  onNftClick?: () => void;
   onTrovesClick?: () => void;
   onCustomizeClick?: () => void;
 }
@@ -101,6 +102,7 @@ export const Header = ({
   onRedeemClick,
   onRevokeClick,
   onBribesClick,
+  onNftClick,
   onTrovesClick,
   onCustomizeClick,
 }: HeaderProps) => {
@@ -198,6 +200,14 @@ export const Header = ({
               onClick={onBribesClick}
             >
               veBTC
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="border border-primary bg-transparent text-primary hover:bg-primary/10 hover:text-primary"
+              onClick={onNftClick}
+            >
+              NFT
             </Button>
             {/* <Button
               size="sm"

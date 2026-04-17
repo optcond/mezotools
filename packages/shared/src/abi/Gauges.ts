@@ -332,6 +332,19 @@ export const VotingEscrowAbi = [
     type: "function",
   },
   {
+    inputs: [
+      { internalType: "uint256", name: "_from", type: "uint256" },
+      { internalType: "uint256", name: "_amount", type: "uint256" },
+    ],
+    name: "split",
+    outputs: [
+      { internalType: "uint256", name: "_tokenId1", type: "uint256" },
+      { internalType: "uint256", name: "_tokenId2", type: "uint256" },
+    ],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
     inputs: [],
     name: "totalVotingPower",
     outputs: [{ internalType: "uint256", name: "", type: "uint256" }],

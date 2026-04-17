@@ -3,3 +3,5 @@ node_modules
 dist
 rest.http
 copy2
+.codex
+AGENTS.md

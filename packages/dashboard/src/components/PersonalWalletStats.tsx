@@ -5,6 +5,7 @@ import { Activity, ExternalLink, Info, Wallet } from "lucide-react";
 import type { PublicClient } from "viem";
 
 import { WalletConnectButton } from "@/components/WalletConnectButton";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -36,6 +37,7 @@ interface PersonalWalletStatsProps {
   isLoading: boolean;
   wallet: WalletControls;
   tokenPricesUsd?: Record<string, number | null | undefined>;
+  onNftOperationsClick?: () => void;
 }
 
 type MainTab = "balance" | "troves" | "activity" | "ve-nft";
@@ -74,6 +76,7 @@ export const PersonalWalletStats = ({
   isLoading,
   wallet,
   tokenPricesUsd,
+  onNftOperationsClick,
 }: PersonalWalletStatsProps) => {
   const { account } = wallet;
   const normalizedAccount = account?.toLowerCase() ?? null;
@@ -257,11 +260,24 @@ export const PersonalWalletStats = ({
   const renderVeNfts = () => {
     return (
       <div className="rounded-2xl border border-card-border/40 bg-card/30 p-5">
-        <div className="mb-4">
-          <p className="text-xs uppercase text-muted-foreground">ve NFT</p>
-          <p className="text-2xl font-semibold">
-            {veNftStatsQuery.isFetching ? "Fetching..." : `${veNfts.length} locks`}
-          </p>
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-xs uppercase text-muted-foreground">ve NFT</p>
+            <p className="text-2xl font-semibold">
+              {veNftStatsQuery.isFetching
+                ? "Fetching..."
+                : `${veNfts.length} locks`}
+            </p>
+          </div>
+          {onNftOperationsClick ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onNftOperationsClick}
+            >
+              Edit NFTs
+            </Button>
+          ) : null}
         </div>
         {veNftStatsQuery.isFetching && veNfts.length === 0 ? (
           <div className="grid gap-3 sm:grid-cols-2">

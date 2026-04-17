@@ -14,6 +14,75 @@ export type Database = {
   }
   public: {
     Tables: {
+      approvals_state: {
+        Row: {
+          approved_bool: boolean | null
+          approved_value: string | null
+          chain_id: number
+          last_block_number: number
+          last_log_index: number
+          last_tx_hash: string
+          owner_address: string
+          spender_address: string
+          standard: string
+          state_key: string
+          token_address: string
+          token_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          approved_bool?: boolean | null
+          approved_value?: string | null
+          chain_id: number
+          last_block_number: number
+          last_log_index: number
+          last_tx_hash: string
+          owner_address: string
+          spender_address: string
+          standard: string
+          state_key: string
+          token_address: string
+          token_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          approved_bool?: boolean | null
+          approved_value?: string | null
+          chain_id?: number
+          last_block_number?: number
+          last_log_index?: number
+          last_tx_hash?: string
+          owner_address?: string
+          spender_address?: string
+          standard?: string
+          state_key?: string
+          token_address?: string
+          token_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      indexer_checkpoints: {
+        Row: {
+          indexer_name: string
+          last_indexed_block: number
+          last_safe_block: number
+          updated_at: string
+        }
+        Insert: {
+          indexer_name: string
+          last_indexed_block: number
+          last_safe_block: number
+          updated_at?: string
+        }
+        Update: {
+          indexer_name?: string
+          last_indexed_block?: number
+          last_safe_block?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       indexer_state: {
         Row: {
           block_number: number
